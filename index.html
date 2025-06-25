@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Discador - Importação Funcional</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h2>Importar contatos</h2>
+  <input type="file" id="fileInput" accept=".csv,.xlsx">
+  <ul id="lista"></ul>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const lista = document.getElementById('lista');
+
+    fileInput.onchange = e => {
+      const f = e.target.files[0];
+      if (!f) return;
+
+      const ext = f.name.split('.').pop().toLowerCase();
+      const map = r => ({
+        nome: (r.nome || r.Nome || r.contato || '').trim(),
+        numero: String(r.numero || r.Numero || r.telefone || '').replace(/\D/g, '')
+      });
+
+      const renderList = dados => {
+        lista.innerHTML = '';
+        dados.forEach(c => {
+          if (c.nome && c.numero) {
+            const li = document.createElement('li');
+            li.textContent = `${c.nome} - ${c.numero}`;
+            lista.appendChild(li);
+          }
+        });
+      };
+
+      if (ext === 'csv') {
+        Papa.parse(f, {
+          header: true,
+          skipEmptyLines: true,
+          complete: r => renderList(r.data.map(map))
+        });
+      } else if (['xlsx', 'xls'].includes(ext)) {
+        const reader = new FileReader();
+        reader.onload = x => {
+          const wb = XLSX.read(x.target.result, { type: 'binary' });
+          const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+          renderList(data.map(map));
+        };
+        reader.readAsBinaryString(f);
+      } else {
+        alert('Formato não suportado');
+      }
+    };
+  </script>
+</body>
+</html>
