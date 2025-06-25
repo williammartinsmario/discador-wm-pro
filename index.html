@@ -1,0 +1,195 @@
+
+<!-- Discador WM com layout restaurado + importação CSV/XLSX -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Discador WM</title>
+  <style>
+    :root {
+      --primary: #004aad;
+      --secondary: #2ecc71;
+      --gold: #d4af37;
+      --bg: #f7f7f7;
+      --danger: #e74c3c;
+    }
+    body { font-family: Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+    header { display: flex; align-items: center; justify-content: space-between; }
+    header img { height: 40px; }
+    h1 { font-size: 1.5rem; color: var(--primary); margin: 0; }
+    .contador { font-size: 1.2rem; color: var(--gold); display: flex; align-items: center; gap: 6px; }
+    .contador i { color: var(--gold); }
+    input[type="file"] { margin-top: 10px; }
+    button {
+      margin: 4px;
+      padding: 6px 12px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .btn-call { background: var(--secondary); color: white; }
+    .btn-whatsapp { background: green; color: white; }
+    .btn-save { background: var(--primary); color: white; }
+    .btn-clear { background: #ccc; }
+    table { width: 100%; margin-top: 12px; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: var(--primary); color: white; }
+    .highlight { background-color: #ffffcc !important; }
+    textarea { width: 100%; height: 50px; resize: vertical; margin-top: 6px; }
+    .msg { margin-top: 10px; padding: 8px; border-radius: 6px; display: none; }
+    .msg.ok { background: #e8fce8; color: #070; }
+    .msg.error { background: #fee; color: #900; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header>
+    <img src="logo.png" alt="WM Logo">
+    <h1>Discador WM</h1>
+    <div class="contador"><i>📞</i> Ligações feitas: <span id="contador">0</span></div>
+  </header>
+
+  <input type="file" id="fileInput" accept=".csv,.xlsx">
+  <button class="btn-clear" onclick="clearData()">Limpar Dados</button>
+  <div id="msg" class="msg"></div>
+
+  <h2>Contatos</h2>
+  <table id="contatoTable">
+    <thead><tr><th>Nome</th><th>Número</th><th>Ações</th><th>Informações</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const KEY_CONTATOS = 'wm_contatos';
+    const KEY_HIST = 'wm_hist';
+    const KEY_COUNT = 'wm_count';
+
+    const msgBox = document.getElementById('msg');
+    const contadorSpan = document.getElementById('contador');
+
+    function showMsg(text, ok=true) {
+      msgBox.textContent = text;
+      msgBox.className = 'msg ' + (ok ? 'ok' : 'error');
+      msgBox.style.display = 'block';
+      setTimeout(() => msgBox.style.display = 'none', 6000);
+    }
+
+    const salvar = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+    const carregar = k => JSON.parse(localStorage.getItem(k) || '[]');
+
+    function render() {
+      const contatos = carregar(KEY_CONTATOS);
+      const tbody = document.querySelector('#contatoTable tbody');
+      tbody.innerHTML = '';
+      contatos.forEach((c, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${c.nome}</td>
+          <td><a href="tel:${c.numero}">${c.numero}</a></td>
+          <td>
+            <button class="btn-call" onclick="destacar(${i})">Ligar</button>
+            <button class="btn-whatsapp" onclick="abrirWhats('${c.numero}')">Whats</button>
+            <button class="btn-save" onclick="salvarContato(${i})">Salvar</button>
+          </td>
+          <td><textarea placeholder="Observações...">${c.info||''}</textarea></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      atualizarContador();
+    }
+
+    function destacar(index) {
+      document.querySelectorAll('#contatoTable tbody tr').forEach((tr, i) => {
+        tr.classList.toggle('highlight', i === index);
+      });
+    }
+
+    function salvarContato(i) {
+      const contatos = carregar(KEY_CONTATOS);
+      const tr = document.querySelectorAll('#contatoTable tbody tr')[i];
+      const textarea = tr.querySelector('textarea');
+      const info = textarea.value.trim();
+      const atualizado = contatos.splice(i,1)[0];
+      atualizado.info = info;
+      contatos.push(atualizado);
+      salvar(KEY_CONTATOS, contatos);
+      let count = parseInt(localStorage.getItem(KEY_COUNT)||'0');
+      localStorage.setItem(KEY_COUNT, ++count);
+      render();
+    }
+
+    function abrirWhats(numero) {
+      window.open(`https://wa.me/55${numero}`, '_blank');
+    }
+
+    function atualizarContador() {
+      contadorSpan.textContent = localStorage.getItem(KEY_COUNT) || '0';
+    }
+
+    function clearData() {
+      if (confirm("Deseja apagar todos os dados?")) {
+        localStorage.removeItem(KEY_CONTATOS);
+        localStorage.removeItem(KEY_HIST);
+        localStorage.removeItem(KEY_COUNT);
+        render();
+        showMsg("Dados apagados.", true);
+      }
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext === 'csv') importCSV(file);
+      else if (ext === 'xlsx') importXLSX(file);
+      else showMsg('Formato não suportado.', false);
+    });
+
+    function importCSV(file) {
+      Papa.parse(file, {
+        header: false,
+        skipEmptyLines: 'greedy',
+        complete: res => processar(res.data)
+      });
+    }
+
+    function importXLSX(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        processar(data);
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    function processar(linhas) {
+      try {
+        const novos = [];
+        linhas.forEach(l => {
+          if (l.length < 2) return;
+          let nome = (l[0] || '').toString().trim();
+          let numero = (l[1] || '').toString().replace(/\D/g, '');
+          if (!nome || !numero) return;
+          novos.push({ nome, numero });
+        });
+        const contatos = carregar(KEY_CONTATOS);
+        const numeros = new Set(contatos.map(c => c.numero));
+        const unicos = novos.filter(c => !numeros.has(c.numero));
+        salvar(KEY_CONTATOS, [...contatos, ...unicos]);
+        showMsg(`${unicos.length} contato(s) importado(s).`, true);
+        render();
+      } catch (err) {
+        console.error(err);
+        showMsg("Erro ao processar o arquivo.", false);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', render);
+  </script>
+</body>
+</html>
