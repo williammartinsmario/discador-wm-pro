@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Discador WM</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{--gold:#b08540;--gold-dark:#a06e2d;--bg:#f8f4ef;--text:#333;--g300:#d1d5db;--whats:#25d366}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;min-height:100vh}
+    header{background:var(--gold);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap}
+    .logo{display:flex;align-items:center;font-size:1.4rem;font-weight:600}
+    .logo img{height:52px;margin-right:12px}
+    .counter{display:flex;align-items:center;font-weight:600;font-size:1rem;gap:6px}
+    .counter img{height:20px}
+    main{flex:1;padding:24px;max-width:1100px;margin:auto;background:#fff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+    .top{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+    input[type=file],input[type=text],textarea{padding:8px;border:1px solid var(--g300);border-radius:6px;width:100%}
+    textarea{resize:vertical}
+    button{background:var(--gold);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer}
+    button:hover{background:var(--gold-dark)}
+    .btn-whats{background:var(--whats)}
+    .btn-whats:hover{filter:brightness(.9)}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.9rem}
+    th,td{border:1px solid var(--g300);padding:6px;text-align:left}
+    th{background:var(--bg)}
+    .badge{padding:2px 6px;border-radius:4px;color:#fff;font-size:.75rem;font-weight:600}
+    .novo{background:#6b7280}.ligado{background:#ef4444}.whats{background:var(--whats)}.quente{background:#c2410c}.frio{background:#64748b}
+    tr.current{outline:2px solid var(--gold-dark)}
+    footer{margin:24px auto 8px;font-size:.8rem;color:#666;text-align:center}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo"><img src="logo.png" alt="WM logo">WM Assessoria</div>
+    <div class="counter"><img src="https://img.icons8.com/ios-filled/50/b08540/phone.png" alt="lig"><span id="callCount">0</span></div>
+    <div><button id="backupBtn">Backup</button><button id="reportBtn">Relatório</button></div>
+  </header>
+  <main>
+    <div class="top"><input type="file" id="fileInput" accept=".csv,.xlsx"><input type="text" id="search" placeholder="Buscar nome ou número"></div>
+    <textarea id="msgTemplate" rows="3">Olá ${firstName}, tudo bem? Aqui é o William da Direcional!</textarea>
+    <table><thead><tr><th>Nome</th><th>Número</th><th>Status</th><th>Lead</th><th>Resultado</th><th>Info</th><th>Ações</th></tr></thead><tbody id="tbody"></tbody></table>
+  </main>
+  <footer>© 2025 WM Assessoria</footer>
+<script>
+let contacts=JSON.parse(localStorage.getItem('wm_contacts')||'[]');let calls=0;const save=()=>localStorage.setItem('wm_contacts',JSON.stringify(contacts));
+const tbody=document.getElementById('tbody');const search=document.getElementById('search');const callEl=document.getElementById('callCount');const tpl=document.getElementById('msgTemplate');
+function render(f=''){
+ tbody.innerHTML='';contacts.filter(c=>c.nome.toLowerCase().includes(f)||c.numero.includes(f)).forEach((c,i)=>{
+  tbody.insertAdjacentHTML('beforeend',`<tr id="row-${i}"><td>${c.nome}</td><td>${c.numero}</td><td><span class="badge ${c.status}">${c.status}</span></td><td><select onchange="upd(${i},'lead',this.value)"><option value="" ${c.lead===''?'selected':''}></option><option value="quente" ${c.lead==='quente'?'selected':''}>quente</option><option value="frio" ${c.lead==='frio'?'selected':''}>frio</option></select></td><td><select onchange="upd(${i},'result',this.value)"><option value="" ${c.result===''?'selected':''}></option><option value="atendeu" ${c.result==='atendeu'?'selected':''}>atendeu</option><option value="caixa" ${c.result==='caixa'?'selected':''}>caixa</option><option value="desligou" ${c.result==='desligou'?'selected':''}>desligou</option></select></td><td><input id="info-${i}" value="${c.info||''}" style="width:120px" onfocus="highlight(${i})" oninput="upd(${i},'info',this.value)"><button style="display:none" id="save-${i}" onclick="saveInfo(${i})">Salvar</button></td><td><button onclick="call(${i})">Ligar</button><button class="btn-whats" onclick="whats(${i})">Whats</button></td></tr>`);
+ });
+}
+function upd(i,key,val){contacts[i][key]=val;document.getElementById(`save-${i}`)?.style.setProperty('display','inline-block');}
+function saveInfo(i){contacts[i].status='ligado';calls++;callEl.textContent=calls;save();const moved=contacts.splice(i,1)[0];contacts.push(moved);render(search.value.toLowerCase());}
+function highlight(i){document.querySelectorAll('tr').forEach(r=>r.classList.remove('current'));document.getElementById(`row-${i}`).classList.add('current');}
+function call(i){highlight(i);document.getElementById(`info-${i}`).focus();}
+function whats(i){highlight(i);const c=contacts[i];const msg=tpl.value.replace('${firstName}',c.nome.split(' ')[0]);window.open(`https://wa.me/55${c.numero.replace(/\\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');navigator.clipboard.writeText(msg);c.status='whats';save();render(search.value.toLowerCase());}
+fileInput.onchange=e=>{const f=e.target.files[0];if(!f)return;const ext=f.name.split('.').pop().toLowerCase();const map=r=>({nome:(r.nome||r.Nome||r.contato||'').trim(),numero:String(r.numero||r.Numero||r.telefone||'').replace(/\\D/g,''),status:'novo',lead:'',result:'',info:''});const add=l=>{const s=new Set(contacts.map(c=>c.numero));l.forEach(c=>{if(c.numero&&c.nome&&!s.has(c.numero)){contacts.push(c);s.add(c.numero);}});save();render(search.value.toLowerCase());};if(ext==='csv'){Papa.parse(f,{header:true,skipEmptyLines:true,delimiter:'',complete:r=>add(r.data.map(map))});}else if(['xlsx','xls'].includes(ext)){const rd=new FileReader();rd.onload=x=>{const wb=XLSX.read(x.target.result,{type:'binary'});add(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]).map(map));};rd.readAsBinaryString(f);}else alert('Formato não suportado');};
+backupBtn.onclick=()=>{const b=new Blob([JSON.stringify(contacts,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='backup_contatos.json';a.click();};
+reportBtn.onclick=()=>{let csv='nome,numero,status,lead,resultado,info\n';contacts.forEach
