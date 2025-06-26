@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wm Assessoria</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body{margin:0;font-family:Arial, sans-serif;background:linear-gradient(135deg,#777,#2e2e2e);color:#fff}
+    header{background:#fdfaf2;color:#c5a046;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+    header img{height:40px}
+    header h1{margin:0;font-family:'Georgia',serif;font-weight:600}
+    #contador{color:gold;font-weight:bold}
+    .container{padding:20px}
+    .btn{padding:6px 12px;margin:4px 3px;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:14px;transition:.2s;display:inline-block}
+    .btn-call{background:#c5a046;color:#fff}.btn-call:hover{background:#b8943f}
+    .btn-whatsapp{background:#25d366;color:#fff}
+    .btn-save{background:#333;color:#fff}
+    .btn-clear{background:#aa0000;color:#fff}
+    .lead{background:#444;border:2px solid transparent;border-radius:8px;padding:14px;margin-bottom:12px}
+    .lead.active{border-color:gold}
+    textarea{width:100%;margin-top:8px;height:60px;border:none;border-radius:6px;padding:8px}
+    select{margin-left:8px;border-radius:5px;padding:4px}
+  </style>
+</head>
+<body>
+  <header>
+    <img src="logo.png" alt="Wm Assessoria" />
+    <h1>Wm Assessoria</h1>
+    <div>📞 Ligações: <span id="contador">0</span></div>
+  </header>
+
+  <div class="container">
+    <input type="file" id="fileInput" accept=".csv,.xlsx" />
+    <button class="btn btn-clear" onclick="limpar()">Limpar Planilha</button>
+    <div id="lista"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    let leads=[],count=0;
+    const $=q=>document.querySelector(q);
+    const lista=$('#lista');
+
+    const addLead=(n,num)=>{leads.push({nome:n,numero:num,obs:''});render();};
+    const updateCounter=()=>$('#contador').textContent=count;
+
+    function render(){
+      lista.innerHTML='';
+      leads.forEach((l,i)=>{
+        const nlimpo=l.numero.replace(/\D/g,'');
+        lista.insertAdjacentHTML('beforeend',`
+          <div class="lead" id="lead-${i}">
+            <strong>${l.nome}</strong> – ${l.numero}
+            <select id="status-${i}">
+              <option value="">Status</option>
+              <option value="quente">Quente</option>
+              <option value="frio">Frio</option>
+            </select><br>
+            <a href="tel:${nlimpo}" class="btn btn-call" onclick="highlight(${i});increment(${i})">📞 Ligar</a>
+            <a href="https://wa.me/55${nlimpo}" target="_blank" class="btn btn-whatsapp">WhatsApp</a>
+            <button class="btn btn-save" onclick="saveLead(${i})">Salvar</button>
+            <textarea id="obs-${i}" placeholder="Observações...">${l.obs}</textarea>
+          </div>`);
+      });
+    }
+
+    function highlight(i){document.querySelectorAll('.lead').forEach((d,idx)=>d.classList.toggle('active',idx===i));}
+    function increment(){count++;updateCounter();}
+    function saveLead(i){
+      leads[i].obs=$('#obs-'+i).value.trim();
+      const saved=leads.splice(i,1)[0];
+      leads.push(saved);render();
+    }
+    function limpar(){leads=[];count=0;updateCounter();lista.innerHTML='';fileInput.value='';}
+
+    fileInput.addEventListener('change',e=>{
+      const f=e.target.files[0];if(!f)return;const ext=f.name.split('.').pop().toLowerCase();
+      if(ext==='csv') Papa.parse(f,{header:false,skipEmptyLines:'greedy',complete:r=>processRows(r.data)});
+      else if(ext==='xlsx'){
+        const fr=new FileReader();fr.onload=ev=>{const wb=XLSX.read(ev.target.result,{type:'binary'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});processRows(rows);};fr.readAsBinaryString(f);
+      }else alert('Formato não suportado');
+    });
+
+    function processRows(rows){
+      rows.forEach(r=>{if(r.length<2)return;const nome=r[0]?.toString().trim();const num=r[1]?.toString().trim();if(nome&&num)addLead(nome,num);});
+    }
+  </script>
+</body>
+</html>
