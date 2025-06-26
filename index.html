@@ -1,0 +1,128 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wm Assessoria</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom right, #777, #222);
+            color: white;
+        }
+        header {
+            background: #f8f5ed;
+            color: #a6833a;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-family: Georgia, serif;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header img {
+            height: 40px;
+            margin-left: 20px;
+        }
+        .container {
+            padding: 20px;
+        }
+        .lead {
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: #444;
+        }
+        .actions {
+            margin-top: 10px;
+        }
+        .btn {
+            padding: 6px 12px;
+            margin: 0 5px 5px 0;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            transition: 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-call {
+            background-color: #C5A046;
+            color: white;
+        }
+        .btn-call:hover {
+            background-color: #b8943f;
+        }
+        .whats-btn {
+            background-color: #25d366;
+            color: white;
+        }
+        .save-btn {
+            background-color: #222;
+            color: white;
+        }
+        textarea {
+            width: 100%;
+            border-radius: 6px;
+            border: none;
+            margin-top: 10px;
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="logo.png" alt="Wm Assessoria" />
+        <div>Wm Assessoria</div>
+        <div>📞 Ligações: <span id="counter">0</span></div>
+    </header>
+    <div class="container" id="leadsContainer"></div>
+
+    <script>
+        const leads = [{ nome: "Exemplo Cliente", numero: "19991234567", obs: "" }];
+
+        function highlight(idx) {
+            document.querySelectorAll('.lead')
+                .forEach((el, i) => el.classList.toggle('active', i === idx));
+            let counter = document.getElementById("counter");
+            counter.textContent = parseInt(counter.textContent) + 1;
+        }
+
+        function saveLead(i) {
+            const obs = document.getElementById('obs-' + i).value;
+            leads[i].obs = obs;
+            alert('Observações salvas!');
+        }
+
+        function render() {
+            const div = document.getElementById('leadsContainer');
+            div.innerHTML = '';
+
+            leads.forEach((lead, i) => {
+                const numeroLimpo = lead.numero.replace(/\D/g, '');
+                const card = document.createElement('div');
+                card.className = 'lead';
+                card.innerHTML = \`
+                    <strong>\${lead.nome}</strong>
+                    <span style="opacity:.8"> – \${lead.numero}</span>
+
+                    <div class="actions">
+                        <a class="btn btn-call" href="tel:\${numeroLimpo}" onclick="highlight(\${i})">📞 Ligar</a>
+                        <button class="btn whats-btn" onclick="window.open('https://wa.me/55\${numeroLimpo}')">WhatsApp</button>
+                        <button class="btn save-btn" onclick="saveLead(\${i})">Salvar</button>
+                        <textarea id="obs-\${i}" placeholder="Observações...">\${lead.obs || ''}</textarea>
+                    </div>\`;
+                div.appendChild(card);
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>
