@@ -35,14 +35,33 @@
   .btn-salvar{background:#ff9800;color:#fff}
   .btn-backup{background:#007bff;color:#fff}
   .btn-reset{background:#6c757d;color:#fff}
+  .btn-drive{background:#4caf50;color:#fff}
   .btn-acoes{background:#f1f3f5;color:#333}
   input[type="text"],select{
     padding:9px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px
   }
+  #drive-status{
+    font-weight:600;
+    color:#0f5132;
+    background:#d1e7dd;
+    padding:8px 12px;
+    border-radius:8px;
+  }
   #contador{padding:16px 32px;font-weight:600;color:#444}
+  #duplicadosAviso{
+    margin:-12px 32px 16px;
+    font-weight:600;
+    color:#0f5132;
+  }
   .contato-card{
     background:#fff;margin:16px 32px;border-radius:10px;
     box-shadow:0 1px 4px rgba(0,0,0,.08);padding:18px 22px
+  }
+  .contato-card.ja-contatado{border:2px solid #f87171;background:#fff1f2}
+  .contato-card.ja-contatado .numero{color:#b91c1c;font-weight:700}
+  .contato-card .etiqueta-ja-ligado{
+    display:inline-block;background:#fee2e2;color:#b91c1c;
+    padding:4px 8px;border-radius:6px;font-size:12px;font-weight:700;
   }
   .contato-top{
     display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:10px
@@ -84,9 +103,12 @@
   </select>
   <button class="btn-acoes" onclick="limparFiltros()">🧹 Limpar Filtros</button>
   <button class="btn-backup" onclick="exportarCSV()">💾 Backup</button>
+  <button class="btn-drive" id="btnDrive" onclick="solicitarConexaoDrive()">🔗 Conectar ao Drive</button>
+  <span id="drive-status" aria-live="polite">Drive não conectado</span>
 </div>
 
 <p id="contador">📊 Ligações feitas hoje: 0</p>
+<p id="duplicadosAviso" aria-live="polite">Nenhum número importado foi marcado como já contatado.</p>
 <div id="lista-contatos"></div>
 
 <h2 class="section">📜 Histórico de Ligações</h2>
@@ -99,6 +121,13 @@
 
 <script>
 let contatos=[];let contatosFeitos=JSON.parse(localStorage.getItem("contatosFeitos"))||[];
+let db=null;let numerosLigados=new Set();
+const DRIVE_SCOPES="https://www.googleapis.com/auth/drive.file";
+let driveFileId=localStorage.getItem("driveFileId")||"";
+let tokenClient=null;
+let bibliotecasCarregadas=false;
+let driveAutenticado=false;
+const driveConfig=JSON.parse(localStorage.getItem("driveConfig"))||{clientId:"",apiKey:""};
 document.getElementById("fileInput").addEventListener("change",importarCSV);
 document.getElementById("filtroNome").addEventListener("input",renderizarContatos);
 document.getElementById("filtroLead").addEventListener("change",renderizarContatos);
@@ -129,6 +158,7 @@ function importarCSV(e){
       return{nome:nome?.trim(),numero};
     }).filter(c=>c.nome&&c.numero.length>=10);
 
+    marcarContatosJaLigados();
     renderizarContatos();
     atualizarContador();
   };
@@ -150,7 +180,8 @@ function renderizarContatos(){
 
     const top=document.createElement("div");
     top.className="contato-top";
-    top.innerHTML=`<span class="nome">${c.nome}</span><span class="numero">${c.numero}</span>`;
+    const etiqueta=c.jaLigado?'<span class="etiqueta-ja-ligado">Já contatado</span>':"";
+    top.innerHTML=`<span class="nome">${c.nome}</span><span class="numero">${c.numero}</span>${etiqueta}`;
 
     const ligar=criarBtn("📞 Ligar","btn-ligar",()=>window.location.href=`tel:+55${c.numero}`);
     const whats=criarBtn("💬 WhatsApp","btn-whats",()=>window.open(`https://wa.me/55${c.numero}`,"_blank"));
@@ -169,6 +200,9 @@ function renderizarContatos(){
       const dataHora=new Date().toLocaleString();
       contatosFeitos.push({nome:c.nome,numero:c.numero,status:status.value,info:info.value,lead:lead.value,dataHora});
       localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+      atualizarNumerosLigados();
+      salvarContatoNoDB(contatosFeitos[contatosFeitos.length-1]);
+      if(tokenClient) salvarNoDrive();
       atualizarContatosFeitos();
       contatos.splice(idx,1);
       renderizarContatos();
@@ -177,6 +211,7 @@ function renderizarContatos(){
 
     form.append(status,info,lead,salvar);
     card.appendChild(form);
+    if(c.jaLigado) card.classList.add("ja-contatado");
     lista.appendChild(card);
   });
 }
@@ -197,6 +232,230 @@ function select(opts){
     s.appendChild(op);
   });
   return s;
+}
+
+function atualizarStatusDrive(texto){
+  const el=document.getElementById("drive-status");
+  if(el) el.textContent=texto;
+}
+
+function atualizarAvisoDuplicados(qtd){
+  const el=document.getElementById("duplicadosAviso");
+  if(!el) return;
+  if(qtd>0){
+    el.textContent=`⚠️ ${qtd} números já receberam ligação e foram destacados em vermelho.`;
+    el.style.color="#b91c1c";
+  }else{
+    el.textContent="Nenhum número importado foi marcado como já contatado.";
+    el.style.color="#0f5132";
+  }
+}
+
+function atualizarNumerosLigados(){
+  numerosLigados=new Set(contatosFeitos.map(c=>c.numero));
+}
+
+function marcarContatosJaLigados(){
+  let duplicados=0;
+  contatos=contatos.map(c=>{
+    const jaLigado=numerosLigados.has(c.numero);
+    if(jaLigado) duplicados++;
+    return {...c,jaLigado};
+  });
+  atualizarAvisoDuplicados(duplicados);
+}
+
+function atualizarBotaoDrive(texto,{disabled=false}={}){
+  const botao=document.getElementById("btnDrive");
+  if(!botao) return;
+  botao.textContent=texto;
+  botao.disabled=disabled;
+}
+
+function initIndexedDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open("discadorDB",1);
+    req.onupgradeneeded=e=>{
+      const dbUp=e.target.result;
+      if(!dbUp.objectStoreNames.contains("historico")){
+        dbUp.createObjectStore("historico",{keyPath:"id",autoIncrement:true});
+      }
+    };
+    req.onsuccess=()=>{
+      db=req.result;
+      carregarHistoricoDB();
+      resolve();
+    };
+    req.onerror=()=>reject(req.error);
+  });
+}
+
+function carregarHistoricoDB(){
+  if(!db) return;
+  const tx=db.transaction("historico","readonly");
+  const store=tx.objectStore("historico");
+  const req=store.getAll();
+  req.onsuccess=()=>{
+    if(req.result?.length){
+      contatosFeitos=req.result;
+      localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+      atualizarContatosFeitos();
+      atualizarContador();
+    }
+    atualizarNumerosLigados();
+    marcarContatosJaLigados();
+    renderizarContatos();
+  };
+}
+
+function salvarContatoNoDB(contato){
+  if(!db) return;
+  const tx=db.transaction("historico","readwrite");
+  const store=tx.objectStore("historico");
+  store.add(contato);
+}
+
+function sobrescreverHistoricoNoDB(lista){
+  if(!db) return;
+  const tx=db.transaction("historico","readwrite");
+  const store=tx.objectStore("historico");
+  store.clear();
+  lista.forEach(item=>store.add(item));
+}
+
+function limparHistoricoDB(){
+  if(!db) return;
+  const tx=db.transaction("historico","readwrite");
+  tx.objectStore("historico").clear();
+}
+
+async function carregarBibliotecasGoogle(){
+  if(bibliotecasCarregadas) return;
+  atualizarStatusDrive("Carregando bibliotecas do Google...");
+
+  await new Promise(resolve=>{
+    const script=document.createElement("script");
+    script.src="https://apis.google.com/js/api.js";
+    script.onload=()=>{
+      const gsi=document.createElement("script");
+      gsi.src="https://accounts.google.com/gsi/client";
+      gsi.onload=resolve;
+      document.body.appendChild(gsi);
+    };
+    document.body.appendChild(script);
+  });
+
+  bibliotecasCarregadas=true;
+}
+
+async function solicitarConexaoDrive(){
+  await carregarBibliotecasGoogle();
+  atualizarBotaoDrive("⏳ Conectando...",{disabled:true});
+  if(!driveConfig.clientId||!driveConfig.apiKey){
+    if(!confirm("Para conectar ao Google Drive é preciso informar o Client ID e a API Key do projeto. Deseja configurar agora?")){
+      atualizarStatusDrive("Conexão cancelada: credenciais ausentes");
+      atualizarBotaoDrive("🔗 Conectar ao Drive");
+      return;
+    }
+    const clientIdPrompt=prompt("Informe o Client ID OAuth do Google",driveConfig.clientId||"");
+    const apiKeyPrompt=prompt("Informe a API Key do projeto no Google Cloud",driveConfig.apiKey||"");
+    driveConfig.clientId=clientIdPrompt?clientIdPrompt.trim():"";
+    driveConfig.apiKey=apiKeyPrompt?apiKeyPrompt.trim():"";
+    localStorage.setItem("driveConfig",JSON.stringify(driveConfig));
+  }
+
+  if(!driveConfig.clientId.trim()||!driveConfig.apiKey.trim()){
+    atualizarStatusDrive("Credenciais do Google Drive inválidas");
+    atualizarBotaoDrive("🔗 Conectar ao Drive");
+    return;
+  }
+
+  gapi.load("client",async()=>{
+    await gapi.client.init({
+      apiKey:driveConfig.apiKey,
+      discoveryDocs:["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
+    });
+
+    tokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:driveConfig.clientId,
+      scope:DRIVE_SCOPES,
+      callback:async(resp)=>{
+        if(resp.error){
+          atualizarStatusDrive("Erro ao autenticar no Drive");
+          atualizarBotaoDrive("🔗 Conectar ao Drive");
+          return;
+        }
+        atualizarStatusDrive("Drive conectado. Sincronizando...");
+        driveAutenticado=true;
+        await sincronizarComDrive();
+        atualizarBotaoDrive("✅ Drive conectado",{disabled:true});
+      }
+    });
+
+    tokenClient.requestAccessToken({prompt:"consent"});
+  });
+}
+
+async function sincronizarComDrive(){
+  try{
+    await buscarBackupDrive();
+    await salvarNoDrive();
+    atualizarStatusDrive("Backup ativo no Drive");
+  }catch(e){
+    atualizarStatusDrive("Falha ao sincronizar com o Drive");
+    atualizarBotaoDrive("🔗 Conectar ao Drive");
+  }
+}
+
+async function assegurarArquivoDrive(){
+  if(driveFileId) return driveFileId;
+  const criado=await gapi.client.drive.files.create({
+    resource:{name:"contatos_feitos.json",mimeType:"application/json"},
+    fields:"id"
+  });
+  driveFileId=criado.result.id;
+  localStorage.setItem("driveFileId",driveFileId);
+  return driveFileId;
+}
+
+async function salvarNoDrive(){
+  if(!tokenClient||!driveAutenticado) return;
+  await assegurarArquivoDrive();
+  try{
+    await gapi.client.request({
+      path:`/upload/drive/v3/files/${driveFileId}`,
+      method:"PATCH",
+      params:{uploadType:"media"},
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(contatosFeitos)
+    });
+  }catch(e){
+    atualizarStatusDrive("Erro ao salvar backup no Drive");
+    throw e;
+  }
+}
+
+async function buscarBackupDrive(){
+  if(!tokenClient||!driveAutenticado) return;
+  if(!driveFileId) return;
+  try{
+    const resposta=await gapi.client.drive.files.get({fileId:driveFileId,alt:"media"});
+    const dadosStr=resposta.body||JSON.stringify(resposta.result||[]);
+    const dados=JSON.parse(dadosStr);
+    if(Array.isArray(dados)){
+      contatosFeitos=dados;
+      localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+      atualizarContatosFeitos();
+      atualizarContador();
+      atualizarNumerosLigados();
+      sobrescreverHistoricoNoDB(contatosFeitos);
+      marcarContatosJaLigados();
+      renderizarContatos();
+    }
+  }catch(e){
+    atualizarStatusDrive("Não foi possível ler o backup do Drive");
+    throw e;
+  }
 }
 
 function atualizarContatosFeitos(){
@@ -231,16 +490,22 @@ function limparFiltros(){
   renderizarContatos();
 }
 
-function resetGeral(){
+async function resetGeral(){
   if(confirm("Apagar lista e histórico?")){
     contatos=[];contatosFeitos=[];
-    localStorage.clear();
+    localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
     document.getElementById("lista-contatos").innerHTML="";
+    limparHistoricoDB();
+    atualizarNumerosLigados();
+    marcarContatosJaLigados();
+    if(tokenClient) await salvarNoDrive();
     atualizarContatosFeitos();
     atualizarContador();
   }
 }
 
+atualizarNumerosLigados();
+initIndexedDB().catch(console.error);
 atualizarContatosFeitos();
 atualizarContador();
 </script>
