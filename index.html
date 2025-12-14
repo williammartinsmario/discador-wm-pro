@@ -68,7 +68,6 @@
     .btn-whats { background: #25D366; color: #fff; }
     .btn-salvar { background: #ff9800; color: #fff; }
     .btn-backup { background: #007bff; color: #fff; }
-    .btn-download { background: #0d9488; color: #fff; }
     .btn-reset { background: #6c757d; color: #fff; }
     .btn-acoes { background: #f1f3f5; color: #333; }
 
@@ -202,7 +201,6 @@
     </select>
     <button class="btn-acoes" onclick="limparFiltros()">🧹 Limpar Filtros</button>
     <button class="btn-backup" onclick="exportarCSV()">💾 Backup</button>
-    <button class="btn-download" onclick="baixarIndexAtualizado()">⬇️ Baixar index</button>
   </div>
 
   <div id="resumos">
@@ -418,33 +416,6 @@
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = "contatos_feitos.csv";
-      link.click();
-      URL.revokeObjectURL(link.href);
-    }
-
-    function baixarIndexAtualizado() {
-      const dados = { pendentes: contatos, feitos: contatosFeitos };
-      const base64 = btoa(unescape(encodeURIComponent(JSON.stringify(dados))));
-      const scriptBootstrap = `
-        <script>
-          (function() {
-            try {
-              const bruto = '${base64}';
-              const restaurado = JSON.parse(decodeURIComponent(escape(atob(bruto))));
-              localStorage.setItem('${STORAGE_PENDENTES}', JSON.stringify(restaurado.pendentes || []));
-              localStorage.setItem('${STORAGE_FEITOS}', JSON.stringify(restaurado.feitos || []));
-            } catch (erro) {
-              console.warn('Não foi possível preparar os dados salvos para o download.', erro);
-            }
-          })();
-        <\/script>`;
-
-      const htmlCompleto = document.documentElement.outerHTML.replace("</body>", `${scriptBootstrap}</body>`);
-
-      const blob = new Blob([htmlCompleto], { type: "text/html" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "index-atualizado.html";
       link.click();
       URL.revokeObjectURL(link.href);
     }
