@@ -24,6 +24,12 @@
     display:flex;flex-wrap:wrap;align-items:center;gap:12px;
     padding:16px 32px;background:#fafafa;border-bottom:1px solid #ddd;
   }
+  #top-bar.csv-importado{background:#fff4d6;border-color:#f0c36d;}
+  .csv-lembrete{
+    padding:8px 12px;border-radius:8px;font-size:13px;
+    background:#eef2ff;color:#3b3b73;border:1px solid #c7d2fe;
+  }
+  .csv-lembrete.ativo{background:#ffe8c2;color:#7a4b00;border-color:#f0c36d;font-weight:600;}
   button{
     display:inline-flex;align-items:center;gap:6px;
     padding:10px 18px;border:none;border-radius:8px;font-weight:600;
@@ -35,17 +41,9 @@
   .btn-salvar{background:#ff9800;color:#fff}
   .btn-backup{background:#007bff;color:#fff}
   .btn-reset{background:#6c757d;color:#fff}
-  .btn-drive{background:#4caf50;color:#fff}
   .btn-acoes{background:#f1f3f5;color:#333}
   input[type="text"],select{
     padding:9px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px
-  }
-  #drive-status{
-    font-weight:600;
-    color:#0f5132;
-    background:#d1e7dd;
-    padding:8px 12px;
-    border-radius:8px;
   }
   #contador{padding:16px 32px;font-weight:600;color:#444}
   .contato-card{
@@ -57,6 +55,11 @@
   }
   .contato-top span.nome{font-weight:600;min-width:230px}
   .contato-top span.numero{color:#555}
+  .tag-feito{
+    background:#e8f5e9;color:#1b5e20;border:1px solid #c8e6c9;
+    padding:6px 10px;border-radius:999px;font-size:12px;font-weight:600;
+  }
+  .contato-card.contato-feito{border:1px solid #c8e6c9;box-shadow:0 2px 8px rgba(27,94,32,.12);}
   .formulario{margin-top:10px;display:grid;gap:8px}
   .formulario select,.formulario textarea{border:1px solid #ccc;border-radius:8px;font-size:14px;padding:8px}
   textarea{min-height:60px;resize:vertical}
@@ -83,6 +86,7 @@
 
 <div id="top-bar">
   <input type="file" id="fileInput" accept=".csv">
+  <div id="csvIndicator" class="csv-lembrete">Nenhum CSV importado ainda</div>
   <input type="text" id="filtroNome" placeholder="🔍 Filtrar nome">
   <select id="filtroLead">
     <option value="">Todos os leads</option>
@@ -92,8 +96,6 @@
   </select>
   <button class="btn-acoes" onclick="limparFiltros()">🧹 Limpar Filtros</button>
   <button class="btn-backup" onclick="exportarCSV()">💾 Backup</button>
-  <button class="btn-drive" id="btnDrive" onclick="solicitarConexaoDrive()">🔗 Conectar ao Drive</button>
-  <span id="drive-status" aria-live="polite">Drive não conectado</span>
 </div>
 
 <p id="contador">📊 Ligações feitas hoje: 0</p>
@@ -108,13 +110,9 @@
 <footer>© 2025 WM Assessoria – Todos os direitos reservados.</footer>
 
 <script>
-let contatos=[];let contatosFeitos=JSON.parse(localStorage.getItem("contatosFeitos"))||[];
-const DRIVE_SCOPES="https://www.googleapis.com/auth/drive.file";
-let driveFileId=localStorage.getItem("driveFileId")||"";
-let tokenClient=null;
-let bibliotecasCarregadas=false;
-let driveAutenticado=false;
-const driveConfig=JSON.parse(localStorage.getItem("driveConfig"))||{clientId:"",apiKey:""};
+let contatos=[];
+let contatosFeitos=JSON.parse(localStorage.getItem("contatosFeitos"))||[];
+let mapaContatoFeito=JSON.parse(localStorage.getItem("contatosFeitosMapa"))||{};
 document.getElementById("fileInput").addEventListener("change",importarCSV);
 document.getElementById("filtroNome").addEventListener("input",renderizarContatos);
 document.getElementById("filtroLead").addEventListener("change",renderizarContatos);
@@ -147,6 +145,9 @@ function importarCSV(e){
 
     renderizarContatos();
     atualizarContador();
+    const dataImportacao=new Date().toLocaleString();
+    localStorage.setItem("ultimoCsvImport",dataImportacao);
+    atualizarIndicadorCSV();
   };
   r.readAsText(f);
 }
@@ -168,9 +169,18 @@ function renderizarContatos(){
     top.className="contato-top";
     top.innerHTML=`<span class="nome">${c.nome}</span><span class="numero">${c.numero}</span>`;
 
-    const ligar=criarBtn("📞 Ligar","btn-ligar",()=>window.location.href=`tel:+55${c.numero}`);
+    const ligar=criarBtn("📞 Ligar","btn-ligar",()=>registrarLigacaoELigar(c));
     const whats=criarBtn("💬 WhatsApp","btn-whats",()=>window.open(`https://wa.me/55${c.numero}`,"_blank"));
     top.append(ligar,whats);
+
+    const contatoJaFeito=mapaContatoFeito[c.numero];
+    if(contatoJaFeito){
+      const tag=document.createElement("span");
+      tag.className="tag-feito";
+      tag.textContent=`Contato feito em ${contatoJaFeito}`;
+      top.appendChild(tag);
+      card.classList.add("contato-feito");
+    }
 
     card.appendChild(top);
 
@@ -185,7 +195,6 @@ function renderizarContatos(){
       const dataHora=new Date().toLocaleString();
       contatosFeitos.push({nome:c.nome,numero:c.numero,status:status.value,info:info.value,lead:lead.value,dataHora});
       localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
-      if(tokenClient) salvarNoDrive();
       atualizarContatosFeitos();
       contatos.splice(idx,1);
       renderizarContatos();
@@ -216,141 +225,26 @@ function select(opts){
   return s;
 }
 
-function atualizarStatusDrive(texto){
-  const el=document.getElementById("drive-status");
-  if(el) el.textContent=texto;
+function registrarLigacaoELigar(contato){
+  registrarLigacao(contato);
+  window.location.href=`tel:+55${contato.numero}`;
 }
 
-function atualizarBotaoDrive(texto,{disabled=false}={}){
-  const botao=document.getElementById("btnDrive");
-  if(!botao) return;
-  botao.textContent=texto;
-  botao.disabled=disabled;
-}
-
-async function carregarBibliotecasGoogle(){
-  if(bibliotecasCarregadas) return;
-  atualizarStatusDrive("Carregando bibliotecas do Google...");
-
-  await new Promise(resolve=>{
-    const script=document.createElement("script");
-    script.src="https://apis.google.com/js/api.js";
-    script.onload=()=>{
-      const gsi=document.createElement("script");
-      gsi.src="https://accounts.google.com/gsi/client";
-      gsi.onload=resolve;
-      document.body.appendChild(gsi);
-    };
-    document.body.appendChild(script);
+function registrarLigacao(contato){
+  const dataHora=new Date().toLocaleString();
+  contatosFeitos.push({
+    nome:contato.nome,
+    numero:contato.numero,
+    status:"Contato feito (Ligar)",
+    info:"Registro automático ao clicar em Ligar",
+    lead:contato.lead||"Não informado",
+    dataHora
   });
-
-  bibliotecasCarregadas=true;
-}
-
-async function solicitarConexaoDrive(){
-  await carregarBibliotecasGoogle();
-  atualizarBotaoDrive("⏳ Conectando...",{disabled:true});
-  if(!driveConfig.clientId||!driveConfig.apiKey){
-    if(!confirm("Para conectar ao Google Drive é preciso informar o Client ID e a API Key do projeto. Deseja configurar agora?")){
-      atualizarStatusDrive("Conexão cancelada: credenciais ausentes");
-      atualizarBotaoDrive("🔗 Conectar ao Drive");
-      return;
-    }
-    const clientIdPrompt=prompt("Informe o Client ID OAuth do Google",driveConfig.clientId||"");
-    const apiKeyPrompt=prompt("Informe a API Key do projeto no Google Cloud",driveConfig.apiKey||"");
-    driveConfig.clientId=clientIdPrompt?clientIdPrompt.trim():"";
-    driveConfig.apiKey=apiKeyPrompt?apiKeyPrompt.trim():"";
-    localStorage.setItem("driveConfig",JSON.stringify(driveConfig));
-  }
-
-  if(!driveConfig.clientId.trim()||!driveConfig.apiKey.trim()){
-    atualizarStatusDrive("Credenciais do Google Drive inválidas");
-    atualizarBotaoDrive("🔗 Conectar ao Drive");
-    return;
-  }
-
-  gapi.load("client",async()=>{
-    await gapi.client.init({
-      apiKey:driveConfig.apiKey,
-      discoveryDocs:["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
-    });
-
-    tokenClient=google.accounts.oauth2.initTokenClient({
-      client_id:driveConfig.clientId,
-      scope:DRIVE_SCOPES,
-      callback:async(resp)=>{
-        if(resp.error){
-          atualizarStatusDrive("Erro ao autenticar no Drive");
-          atualizarBotaoDrive("🔗 Conectar ao Drive");
-          return;
-        }
-        atualizarStatusDrive("Drive conectado. Sincronizando...");
-        driveAutenticado=true;
-        await sincronizarComDrive();
-        atualizarBotaoDrive("✅ Drive conectado",{disabled:true});
-      }
-    });
-
-    tokenClient.requestAccessToken({prompt:"consent"});
-  });
-}
-
-async function sincronizarComDrive(){
-  try{
-    await buscarBackupDrive();
-    await salvarNoDrive();
-    atualizarStatusDrive("Backup ativo no Drive");
-  }catch(e){
-    atualizarStatusDrive("Falha ao sincronizar com o Drive");
-    atualizarBotaoDrive("🔗 Conectar ao Drive");
-  }
-}
-
-async function assegurarArquivoDrive(){
-  if(driveFileId) return driveFileId;
-  const criado=await gapi.client.drive.files.create({
-    resource:{name:"contatos_feitos.json",mimeType:"application/json"},
-    fields:"id"
-  });
-  driveFileId=criado.result.id;
-  localStorage.setItem("driveFileId",driveFileId);
-  return driveFileId;
-}
-
-async function salvarNoDrive(){
-  if(!tokenClient||!driveAutenticado) return;
-  await assegurarArquivoDrive();
-  try{
-    await gapi.client.request({
-      path:`/upload/drive/v3/files/${driveFileId}`,
-      method:"PATCH",
-      params:{uploadType:"media"},
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(contatosFeitos)
-    });
-  }catch(e){
-    atualizarStatusDrive("Erro ao salvar backup no Drive");
-    throw e;
-  }
-}
-
-async function buscarBackupDrive(){
-  if(!tokenClient||!driveAutenticado) return;
-  if(!driveFileId) return;
-  try{
-    const resposta=await gapi.client.drive.files.get({fileId:driveFileId,alt:"media"});
-    const dadosStr=resposta.body||JSON.stringify(resposta.result||[]);
-    const dados=JSON.parse(dadosStr);
-    if(Array.isArray(dados)){
-      contatosFeitos=dados;
-      localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
-      atualizarContatosFeitos();
-      atualizarContador();
-    }
-  }catch(e){
-    atualizarStatusDrive("Não foi possível ler o backup do Drive");
-    throw e;
-  }
+  localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+  mapaContatoFeito[contato.numero]=dataHora;
+  localStorage.setItem("contatosFeitosMapa",JSON.stringify(mapaContatoFeito));
+  atualizarContatosFeitos();
+  atualizarContador();
 }
 
 function atualizarContatosFeitos(){
@@ -373,6 +267,22 @@ function exportarCSV(){
   URL.revokeObjectURL(a.href);
 }
 
+function atualizarIndicadorCSV(){
+  const indicador=document.getElementById("csvIndicator");
+  const topBar=document.getElementById("top-bar");
+  if(!indicador||!topBar)return;
+  const info=localStorage.getItem("ultimoCsvImport");
+  if(info){
+    indicador.textContent=`CSV importado em ${info}`;
+    indicador.classList.add("ativo");
+    topBar.classList.add("csv-importado");
+  }else{
+    indicador.textContent="Nenhum CSV importado ainda";
+    indicador.classList.remove("ativo");
+    topBar.classList.remove("csv-importado");
+  }
+}
+
 function atualizarContador(){
   const d=new Date().toLocaleDateString();
   const total=contatosFeitos.filter(c=>c.dataHora.startsWith(d)).length;
@@ -387,17 +297,19 @@ function limparFiltros(){
 
 async function resetGeral(){
   if(confirm("Apagar lista e histórico?")){
-    contatos=[];contatosFeitos=[];
+    contatos=[];contatosFeitos=[];mapaContatoFeito={};
     localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+    localStorage.setItem("contatosFeitosMapa",JSON.stringify(mapaContatoFeito));
     document.getElementById("lista-contatos").innerHTML="";
-    if(tokenClient) await salvarNoDrive();
     atualizarContatosFeitos();
     atualizarContador();
+    atualizarIndicadorCSV();
   }
 }
 
 atualizarContatosFeitos();
 atualizarContador();
+atualizarIndicadorCSV();
 </script>
 </body>
 </html>
