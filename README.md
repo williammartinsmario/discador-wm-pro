@@ -8,7 +8,8 @@ Aplicação web simples para organizar ligações e contatos de WhatsApp a parti
 3. Use os filtros de nome, lead e status para localizar rapidamente contatos específicos.
 4. Registre o resultado da ligação selecionando status, preenchendo as informações e clicando em **Salvar**.
 5. Faça download do histórico completo em CSV com o botão **Backup**.
-6. Utilize **Reset Geral** para limpar pendentes, histórico e armazenamento local.
+6. Gere um `index-atualizado.html` com todos os contatos salvos usando **Baixar index** e mantenha o app pronto para uso offline.
+7. Utilize **Reset Geral** para limpar pendentes, histórico e armazenamento local.
 
 ## Novidades
 - Resumo com total de pendentes, ligações do dia e histórico completo.
