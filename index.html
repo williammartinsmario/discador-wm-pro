@@ -35,9 +35,17 @@
   .btn-salvar{background:#ff9800;color:#fff}
   .btn-backup{background:#007bff;color:#fff}
   .btn-reset{background:#6c757d;color:#fff}
+  .btn-drive{background:#4caf50;color:#fff}
   .btn-acoes{background:#f1f3f5;color:#333}
   input[type="text"],select{
     padding:9px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px
+  }
+  #drive-status{
+    font-weight:600;
+    color:#0f5132;
+    background:#d1e7dd;
+    padding:8px 12px;
+    border-radius:8px;
   }
   #contador{padding:16px 32px;font-weight:600;color:#444}
   .contato-card{
@@ -84,6 +92,8 @@
   </select>
   <button class="btn-acoes" onclick="limparFiltros()">🧹 Limpar Filtros</button>
   <button class="btn-backup" onclick="exportarCSV()">💾 Backup</button>
+  <button class="btn-drive" id="btnDrive" onclick="solicitarConexaoDrive()">🔗 Conectar ao Drive</button>
+  <span id="drive-status" aria-live="polite">Drive não conectado</span>
 </div>
 
 <p id="contador">📊 Ligações feitas hoje: 0</p>
@@ -99,6 +109,12 @@
 
 <script>
 let contatos=[];let contatosFeitos=JSON.parse(localStorage.getItem("contatosFeitos"))||[];
+const DRIVE_SCOPES="https://www.googleapis.com/auth/drive.file";
+let driveFileId=localStorage.getItem("driveFileId")||"";
+let tokenClient=null;
+let bibliotecasCarregadas=false;
+let driveAutenticado=false;
+const driveConfig=JSON.parse(localStorage.getItem("driveConfig"))||{clientId:"",apiKey:""};
 document.getElementById("fileInput").addEventListener("change",importarCSV);
 document.getElementById("filtroNome").addEventListener("input",renderizarContatos);
 document.getElementById("filtroLead").addEventListener("change",renderizarContatos);
@@ -169,6 +185,7 @@ function renderizarContatos(){
       const dataHora=new Date().toLocaleString();
       contatosFeitos.push({nome:c.nome,numero:c.numero,status:status.value,info:info.value,lead:lead.value,dataHora});
       localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+      if(tokenClient) salvarNoDrive();
       atualizarContatosFeitos();
       contatos.splice(idx,1);
       renderizarContatos();
@@ -197,6 +214,143 @@ function select(opts){
     s.appendChild(op);
   });
   return s;
+}
+
+function atualizarStatusDrive(texto){
+  const el=document.getElementById("drive-status");
+  if(el) el.textContent=texto;
+}
+
+function atualizarBotaoDrive(texto,{disabled=false}={}){
+  const botao=document.getElementById("btnDrive");
+  if(!botao) return;
+  botao.textContent=texto;
+  botao.disabled=disabled;
+}
+
+async function carregarBibliotecasGoogle(){
+  if(bibliotecasCarregadas) return;
+  atualizarStatusDrive("Carregando bibliotecas do Google...");
+
+  await new Promise(resolve=>{
+    const script=document.createElement("script");
+    script.src="https://apis.google.com/js/api.js";
+    script.onload=()=>{
+      const gsi=document.createElement("script");
+      gsi.src="https://accounts.google.com/gsi/client";
+      gsi.onload=resolve;
+      document.body.appendChild(gsi);
+    };
+    document.body.appendChild(script);
+  });
+
+  bibliotecasCarregadas=true;
+}
+
+async function solicitarConexaoDrive(){
+  await carregarBibliotecasGoogle();
+  atualizarBotaoDrive("⏳ Conectando...",{disabled:true});
+  if(!driveConfig.clientId||!driveConfig.apiKey){
+    if(!confirm("Para conectar ao Google Drive é preciso informar o Client ID e a API Key do projeto. Deseja configurar agora?")){
+      atualizarStatusDrive("Conexão cancelada: credenciais ausentes");
+      atualizarBotaoDrive("🔗 Conectar ao Drive");
+      return;
+    }
+    const clientIdPrompt=prompt("Informe o Client ID OAuth do Google",driveConfig.clientId||"");
+    const apiKeyPrompt=prompt("Informe a API Key do projeto no Google Cloud",driveConfig.apiKey||"");
+    driveConfig.clientId=clientIdPrompt?clientIdPrompt.trim():"";
+    driveConfig.apiKey=apiKeyPrompt?apiKeyPrompt.trim():"";
+    localStorage.setItem("driveConfig",JSON.stringify(driveConfig));
+  }
+
+  if(!driveConfig.clientId.trim()||!driveConfig.apiKey.trim()){
+    atualizarStatusDrive("Credenciais do Google Drive inválidas");
+    atualizarBotaoDrive("🔗 Conectar ao Drive");
+    return;
+  }
+
+  gapi.load("client",async()=>{
+    await gapi.client.init({
+      apiKey:driveConfig.apiKey,
+      discoveryDocs:["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
+    });
+
+    tokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:driveConfig.clientId,
+      scope:DRIVE_SCOPES,
+      callback:async(resp)=>{
+        if(resp.error){
+          atualizarStatusDrive("Erro ao autenticar no Drive");
+          atualizarBotaoDrive("🔗 Conectar ao Drive");
+          return;
+        }
+        atualizarStatusDrive("Drive conectado. Sincronizando...");
+        driveAutenticado=true;
+        await sincronizarComDrive();
+        atualizarBotaoDrive("✅ Drive conectado",{disabled:true});
+      }
+    });
+
+    tokenClient.requestAccessToken({prompt:"consent"});
+  });
+}
+
+async function sincronizarComDrive(){
+  try{
+    await buscarBackupDrive();
+    await salvarNoDrive();
+    atualizarStatusDrive("Backup ativo no Drive");
+  }catch(e){
+    atualizarStatusDrive("Falha ao sincronizar com o Drive");
+    atualizarBotaoDrive("🔗 Conectar ao Drive");
+  }
+}
+
+async function assegurarArquivoDrive(){
+  if(driveFileId) return driveFileId;
+  const criado=await gapi.client.drive.files.create({
+    resource:{name:"contatos_feitos.json",mimeType:"application/json"},
+    fields:"id"
+  });
+  driveFileId=criado.result.id;
+  localStorage.setItem("driveFileId",driveFileId);
+  return driveFileId;
+}
+
+async function salvarNoDrive(){
+  if(!tokenClient||!driveAutenticado) return;
+  await assegurarArquivoDrive();
+  try{
+    await gapi.client.request({
+      path:`/upload/drive/v3/files/${driveFileId}`,
+      method:"PATCH",
+      params:{uploadType:"media"},
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(contatosFeitos)
+    });
+  }catch(e){
+    atualizarStatusDrive("Erro ao salvar backup no Drive");
+    throw e;
+  }
+}
+
+async function buscarBackupDrive(){
+  if(!tokenClient||!driveAutenticado) return;
+  if(!driveFileId) return;
+  try{
+    const resposta=await gapi.client.drive.files.get({fileId:driveFileId,alt:"media"});
+    const dadosStr=resposta.body||JSON.stringify(resposta.result||[]);
+    const dados=JSON.parse(dadosStr);
+    if(Array.isArray(dados)){
+      contatosFeitos=dados;
+      localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+      atualizarContatosFeitos();
+      atualizarContador();
+    }
+  }catch(e){
+    atualizarStatusDrive("Não foi possível ler o backup do Drive");
+    throw e;
+  }
 }
 
 function atualizarContatosFeitos(){
@@ -231,11 +385,12 @@ function limparFiltros(){
   renderizarContatos();
 }
 
-function resetGeral(){
+async function resetGeral(){
   if(confirm("Apagar lista e histórico?")){
     contatos=[];contatosFeitos=[];
-    localStorage.clear();
+    localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
     document.getElementById("lista-contatos").innerHTML="";
+    if(tokenClient) await salvarNoDrive();
     atualizarContatosFeitos();
     atualizarContador();
   }
