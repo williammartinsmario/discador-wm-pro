@@ -25,6 +25,11 @@
     padding:16px 32px;background:#fafafa;border-bottom:1px solid #ddd;
   }
   #top-bar.csv-importado{background:#fff4d6;border-color:#f0c36d;}
+  .numero.repetido{color:#b00020;font-weight:700;}
+  .badge-repetido{
+    background:#ffebee;color:#b00020;border:1px solid #ffcdd2;
+    padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;
+  }
   .csv-lembrete{
     padding:8px 12px;border-radius:8px;font-size:13px;
     background:#eef2ff;color:#3b3b73;border:1px solid #c7d2fe;
@@ -123,29 +128,46 @@ function importarCSV(e){
   const r=new FileReader();
   r.onload=ev=>{
     const linhas=ev.target.result.split(/\r?\n/).slice(1);
+    const existentes=new Set(contatosFeitos.map(c=>c.numero));
+    const vistosNoArquivo=new Set();
+    const dataImportacao=new Date().toLocaleString();
+
     contatos=linhas.map(l=>{
       const[nome,numeroRaw]=l.split(",");
       let numero=numeroRaw?.trim()||"";
 
-      // 🔹 Normaliza removendo tudo que não for dígito
       numero=numero.replace(/\D/g,"");
 
-      // 🔹 Corrige número (acrescenta 9 se faltar)
       if(numero.length>=10){
-        const ddd=numero.slice(0,2);   // primeiros 2 dígitos
-        let celular=numero.slice(2);   // resto
-        if(celular.length===8){        // se só tem 8 dígitos
+        const ddd=numero.slice(0,2);
+        let celular=numero.slice(2);
+        if(celular.length===8){
           celular="9"+celular;
         }
         numero=ddd+celular;
       }
 
-      return{nome:nome?.trim(),numero};
+      const repetido=existentes.has(numero)||vistosNoArquivo.has(numero);
+      vistosNoArquivo.add(numero);
+
+      if(repetido){
+        contatosFeitos.push({
+          nome:nome?.trim()||"Nome não informado",
+          numero,
+          status:"Contato repetido (CSV)",
+          info:"Registro automático de número duplicado ao importar CSV",
+          lead:"Não informado",
+          dataHora:dataImportacao
+        });
+      }
+
+      return{nome:nome?.trim(),numero,repetido};
     }).filter(c=>c.nome&&c.numero.length>=10);
 
     renderizarContatos();
     atualizarContador();
-    const dataImportacao=new Date().toLocaleString();
+    localStorage.setItem("contatosFeitos",JSON.stringify(contatosFeitos));
+    atualizarContatosFeitos();
     localStorage.setItem("ultimoCsvImport",dataImportacao);
     atualizarIndicadorCSV();
   };
@@ -167,7 +189,8 @@ function renderizarContatos(){
 
     const top=document.createElement("div");
     top.className="contato-top";
-    top.innerHTML=`<span class="nome">${c.nome}</span><span class="numero">${c.numero}</span>`;
+    const numeroClasse=c.repetido?"numero repetido":"numero";
+    top.innerHTML=`<span class="nome">${c.nome}</span><span class="${numeroClasse}">${c.numero}</span>`;
 
     const ligar=criarBtn("📞 Ligar","btn-ligar",()=>registrarLigacaoELigar(c));
     const whats=criarBtn("💬 WhatsApp","btn-whats",()=>window.open(`https://wa.me/55${c.numero}`,"_blank"));
@@ -180,6 +203,13 @@ function renderizarContatos(){
       tag.textContent=`Contato feito em ${contatoJaFeito}`;
       top.appendChild(tag);
       card.classList.add("contato-feito");
+    }
+
+    if(c.repetido){
+      const badge=document.createElement("span");
+      badge.className="badge-repetido";
+      badge.textContent="Número repetido (já enviado ao histórico)";
+      top.appendChild(badge);
     }
 
     card.appendChild(top);
