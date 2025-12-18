@@ -75,6 +75,9 @@
 
 <div id="top-bar">
   <input type="file" id="fileInput" accept=".csv">
+  <input type="text" id="dddPadrao" placeholder="DDD padrão (ex: 62)" maxlength="2" inputmode="numeric">
+  <textarea id="textoContatos" rows="2" placeholder="Cole aqui: Nome,Numero" style="min-width:260px"></textarea>
+  <button class="btn-acoes" onclick="importarTexto()">📥 Adicionar colagem</button>
   <input type="text" id="filtroNome" placeholder="🔍 Filtrar nome">
   <select id="filtroLead">
     <option value="">Todos os leads</option>
@@ -99,9 +102,53 @@
 
 <script>
 let contatos=[];let contatosFeitos=[];let db;const HISTORICO_LOCAL_KEY="contatosFeitos";const DB_NAME="DiscadorDB";const DB_VERSION=2;
+const DDD_STORAGE_KEY="dddPadrao";
 document.getElementById("fileInput").addEventListener("change",importarCSV);
 document.getElementById("filtroNome").addEventListener("input",renderizarContatos);
 document.getElementById("filtroLead").addEventListener("change",renderizarContatos);
+document.getElementById("dddPadrao").addEventListener("input",e=>{
+  const ddd=e.target.value.replace(/\D/g,"").slice(0,2);
+  definirDDDPadrao(ddd);
+});
+
+function normalizarNumero(numeroEntrada,dddPreferido){
+  let numero=numeroEntrada.replace(/\D/g,"");
+  let dddUsado=dddPreferido||"";
+
+  if(numero.length>=10){
+    dddUsado=numero.slice(0,2);
+    let celular=numero.slice(2);
+    if(celular.length===8){
+      celular="9"+celular;
+    }
+    numero=dddUsado+celular;
+  }else if(dddUsado&&numero.length>=8){
+    let celular=numero;
+    if(celular.length===8){
+      celular="9"+celular;
+    }
+    numero=dddUsado+celular;
+  }else if(numero.length<10){
+    numero="";
+  }
+
+  return{numero,dddUsado};
+}
+
+function obterDDDPadrao(){
+  const input=document.getElementById("dddPadrao");
+  const armazenado=localStorage.getItem(DDD_STORAGE_KEY)||"";
+  const ddd=(input.value||armazenado||"").replace(/\D/g,"").slice(0,2);
+  return ddd;
+}
+
+function definirDDDPadrao(ddd){
+  const limpo=ddd.replace(/\D/g,"").slice(0,2);
+  localStorage.setItem(DDD_STORAGE_KEY,limpo);
+  const input=document.getElementById("dddPadrao");
+  if(input.value!==limpo)input.value=limpo;
+  return limpo;
+}
 
 function abrirBanco(){
   return new Promise((resolve,reject)=>{
@@ -202,29 +249,60 @@ async function importarCSV(e){
   if(!f)return;
   const r=new FileReader();
   r.onload=async ev=>{
+    let dddPadrao=obterDDDPadrao();
+    if(!dddPadrao){
+      const informado=(prompt("Digite o DDD padrão para números sem DDD:")||"").trim();
+      dddPadrao=definirDDDPadrao(informado);
+    }
+    let dddDetectado=dddPadrao;
+
     const linhas=ev.target.result.split(/\r?\n/).slice(1);
     contatos=linhas.map(l=>{
       const[nome,numeroRaw]=l.split(",");
-      let numero=numeroRaw?.trim()||"";
-
-      numero=numero.replace(/\D/g,"");
-      if(numero.length>=10){
-        const ddd=numero.slice(0,2);
-        let celular=numero.slice(2);
-        if(celular.length===8){
-          celular="9"+celular;
-        }
-        numero=ddd+celular;
-      }
-
+      const {numero,dddUsado}=normalizarNumero(numeroRaw?.trim()||"",dddDetectado);
+      if(dddUsado&&!dddDetectado)dddDetectado=dddUsado;
       return{nome:nome?.trim(),numero};
     }).filter(c=>c.nome&&c.numero.length>=10);
+
+    if(dddDetectado&&!dddPadrao){
+      definirDDDPadrao(dddDetectado);
+    }
 
     await substituirContatosPendentes(contatos);
     renderizarContatos();
     atualizarContador();
   };
   r.readAsText(f);
+}
+
+async function importarTexto(){
+  let dddPadrao=obterDDDPadrao();
+  if(!dddPadrao){
+    const informado=(prompt("Digite o DDD padrão para números sem DDD:")||"").trim();
+    dddPadrao=definirDDDPadrao(informado);
+  }
+  let dddDetectado=dddPadrao;
+
+  const texto=document.getElementById("textoContatos").value||"";
+  const linhas=texto.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const novos=linhas.map(linha=>{
+    const partes=linha.split(",");
+    const nome=partes.length>1?partes[0].trim():"";
+    const numeroRaw=partes.length>1?partes.slice(1).join(",").trim():partes[0].trim();
+    const {numero,dddUsado}=normalizarNumero(numeroRaw,dddDetectado);
+    if(dddUsado&&!dddDetectado)dddDetectado=dddUsado;
+    return{nome:nome||"Sem nome",numero};
+  }).filter(c=>c.numero.length>=10);
+
+  if(!novos.length)return;
+  contatos=[...contatos,...novos];
+  await substituirContatosPendentes(contatos);
+  renderizarContatos();
+  atualizarContador();
+
+  if(dddDetectado&&!dddPadrao){
+    definirDDDPadrao(dddDetectado);
+  }
 }
 
 function renderizarContatos(){
@@ -339,6 +417,8 @@ async function resetGeral(){
 
 async function inicializarApp(){
   try{
+    const dddSalvo=localStorage.getItem(DDD_STORAGE_KEY)||"";
+    definirDDDPadrao(dddSalvo||"62");
     await abrirBanco();
     contatos=await carregarContatosPendentes();
     contatosFeitos=await carregarHistorico();
