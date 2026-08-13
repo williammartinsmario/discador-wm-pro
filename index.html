@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WM Discador Pro V3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --azul:#003366;--azul2:#0b5ed7;--verde:#25D366;--vermelho:#dc3545;
+      --laranja:#ff9800;--cinza:#6c757d;--bg:#f4f6f9;--borda:#dfe3e8;
+      --texto:#263238;--claro:#fff;
+    }
+    body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--texto);padding-bottom:76px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 28px;background:#fff;border-bottom:2px solid #e5e7eb;position:sticky;top:0;z-index:20}
+    .logo-box{display:flex;align-items:center;gap:14px}
+    .logo-box img{height:52px;max-width:140px;object-fit:contain}
+    header h1{font-size:24px;color:var(--azul);font-weight:700}
+    .header-actions{display:flex;gap:8px;flex-wrap:wrap}
+    #top-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 28px;background:#fafafa;border-bottom:1px solid #ddd;position:sticky;top:86px;z-index:15}
+    button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border:none;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;transition:.18s;white-space:nowrap}
+    button:hover{opacity:.92;transform:translateY(-1px)}
+    button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    .btn-ligar{background:var(--vermelho);color:#fff}
+    .btn-whats{background:var(--verde);color:#fff}
+    .btn-email{background:#6f42c1;color:#fff}
+    .btn-mapa{background:#198754;color:#fff}
+    .btn-salvar{background:var(--laranja);color:#fff}
+    .btn-backup,.btn-primary{background:var(--azul2);color:#fff}
+    .btn-reset,.btn-secondary{background:var(--cinza);color:#fff}
+    .btn-acoes{background:#eef1f4;color:#27313a}
+    .btn-pular{background:#212529;color:#fff}
+    .btn-retorno{background:#0dcaf0;color:#073642}
+    input[type="text"],input[type="email"],input[type="datetime-local"],select,textarea{
+      padding:9px 11px;border:1px solid #cfd6dd;border-radius:8px;font-size:13px;font-family:inherit;background:#fff
+    }
+    input[type="file"]{font-size:13px}
+    textarea{resize:vertical;min-height:64px}
+    .search{min-width:290px;flex:1}
+    .stats{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;padding:16px 28px}
+    .stat{background:#fff;border:1px solid #e8ecef;border-radius:12px;padding:14px 15px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+    .stat small{display:block;color:#69757f;font-size:12px;margin-bottom:2px}
+    .stat strong{font-size:21px;color:var(--azul)}
+    .modo-box{margin:0 28px 12px;background:linear-gradient(135deg,#fff,#f7fbff);border:1px solid #d9e8f8;padding:14px 16px;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .modo-info strong{color:var(--azul)}
+    .modo-info small{display:block;color:#60707d;margin-top:3px}
+    #lista-contatos{padding-bottom:8px}
+    .contato-card{background:#fff;margin:12px 28px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.07);padding:16px 18px;border-left:4px solid transparent}
+    .contato-card.ativo{border-left-color:var(--azul2);box-shadow:0 4px 14px rgba(11,94,215,.15)}
+    .contato-top{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+    .nome{font-weight:700;font-size:17px;min-width:210px;color:#1f2933}
+    .numero{color:#4b5964}
+    .email-line{color:#5d4a82}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+    .chip{background:#eef3f7;border-radius:999px;padding:4px 8px;font-size:11px;color:#41515d}
+    .endereco{font-size:12px;color:#5e6b75;margin:6px 0 10px}
+    .acoes{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}
+    .formulario{margin-top:10px;display:grid;grid-template-columns:180px 160px minmax(240px,1fr) 190px auto;gap:8px;align-items:start}
+    .formulario textarea{min-height:42px}
+    h2.section{margin:28px 28px 8px;font-size:20px;color:var(--azul)}
+    .table-wrap{overflow:auto;margin:0 28px 28px;background:#fff;border-radius:10px}
+    table{width:100%;border-collapse:collapse;min-width:980px}
+    thead{background:var(--azul);color:#fff}
+    th,td{padding:9px;border:1px solid #d7dde3;font-size:12px;text-align:left}
+    tbody tr:nth-child(even){background:#f9fafb}
+    .empty{margin:18px 28px;background:#fff;padding:24px;border-radius:12px;text-align:center;color:#71808b}
+    footer{position:fixed;bottom:0;width:100%;padding:12px;background:var(--azul);color:#fff;text-align:center;font-size:12px;z-index:30}
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:18px;z-index:100}
+    .modal{width:min(820px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 20px 55px rgba(0,0,0,.3)}
+    .modal h3{color:var(--azul);margin-bottom:8px}
+    .modal p{font-size:13px;color:#5d6973;margin-bottom:12px}
+    .mapping-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .map-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #e2e7eb;padding:8px;border-radius:8px}
+    .map-row span{font-size:12px;overflow:hidden;text-overflow:ellipsis}
+    .map-row select{min-width:180px}
+    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+    .toast{position:fixed;right:18px;bottom:70px;background:#212529;color:#fff;padding:10px 14px;border-radius:9px;font-size:12px;opacity:0;pointer-events:none;transition:.25s;z-index:120}
+    .toast.show{opacity:1}
+    @media(max-width:900px){
+      header{position:static}.logo-box img{height:42px}#top-bar{position:static}
+      .stats{grid-template-columns:repeat(2,1fr);padding:12px 14px}
+      .stat:last-child{grid-column:1/-1}
+      .modo-box,.contato-card,.table-wrap,h2.section,.empty{margin-left:14px;margin-right:14px}
+      .formulario{grid-template-columns:1fr 1fr}
+      .formulario textarea{grid-column:1/-1}
+      .search{min-width:100%}
+    }
+    @media(max-width:560px){
+      header{padding:12px 14px;align-items:flex-start}
+      header h1{font-size:19px}.header-actions{justify-content:flex-end}
+      #top-bar{padding:12px 14px}
+      .stats{grid-template-columns:1fr 1fr}
+      .formulario{grid-template-columns:1fr}
+      .formulario textarea{grid-column:auto}
+      .acoes button{flex:1 1 130px}
+    }
+
+    .novidades{
+      margin:14px 28px 4px;background:#fff;border:1px solid #dbe7f3;border-radius:14px;
+      padding:15px 16px;box-shadow:0 2px 8px rgba(0,0,0,.05)
+    }
+    .novidades h3{font-size:15px;color:var(--azul);margin-bottom:9px}
+    .feature-grid{display:flex;gap:8px;flex-wrap:wrap}
+    .feature-badge{
+      background:#f2f7fc;border:1px solid #d7e7f6;color:#24445e;
+      border-radius:999px;padding:6px 10px;font-size:12px;font-weight:600
+    }
+    .filtros-endereco{
+      display:flex;gap:8px;flex-wrap:wrap;width:100%;
+      padding-top:2px
+    }
+    .filtros-endereco input{min-width:180px;flex:1}
+    .card-label{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#87939d;margin-right:3px}
+    .dados-grid{
+      display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:7px;margin:10px 0
+    }
+    .dado{
+      background:#f8fafc;border:1px solid #e7edf2;border-radius:8px;padding:8px 9px;
+      font-size:12px;color:#42515d;min-height:38px
+    }
+    .dado strong{display:block;color:#1f3342;font-size:12px;margin-top:2px;word-break:break-word}
+    .empty strong{color:var(--azul);display:block;font-size:16px;margin-bottom:8px}
+    .empty .empty-features{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+    @media(max-width:900px){
+      .novidades{margin-left:14px;margin-right:14px}
+      .dados-grid{grid-template-columns:repeat(2,1fr)}
+    }
+    @media(max-width:560px){
+      .dados-grid{grid-template-columns:1fr}
+    }
+
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-box">
+    <img src="logo.png" alt="WM Logo" onerror="this.style.display='none'">
+    <div>
+      <h1>WM Discador Pro V3</h1>
+      <small style="color:#6a7680">Excel + Ligações + WhatsApp + E-mail + Endereço • sem meta diária</small>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-backup" onclick="exportarCSV()">💾 Backup</button>
+    <button class="btn-reset" onclick="resetGeral()">🔄 Reset Geral</button>
+  </div>
+</header>
+
+<div id="top-bar">
+  <input type="file" id="fileInput" accept=".csv,.txt,.xlsx,.xls">
+  <textarea id="pasteInput" placeholder="📋 Cole contatos: Nome, Telefone, Email, Cidade..." rows="2" style="width:260px"></textarea>
+  <button class="btn-acoes" onclick="importarColado()">📥 Importar colados</button>
+
+  <input class="search" type="text" id="filtroBusca" placeholder="🔎 Buscar nome, telefone, email, cidade, bairro, rua, empresa">
+  <select id="filtroLead">
+    <option value="">Todos os leads</option>
+    <option value="Quente">🔥 Quente</option>
+    <option value="Frio">❄️ Frio</option>
+    <option value="Aguardando">⏳ Aguardando</option>
+  </select>
+  <select id="filtroTipo">
+    <option value="">Todos os contatos</option>
+    <option value="telefone">Com telefone</option>
+    <option value="email">Com email</option>
+    <option value="retorno">Retornos vencidos/hoje</option>
+    <option value="nao_contatado">Não contatados</option>
+  </select>
+
+  <div class="filtros-endereco">
+    <input type="text" id="filtroCidade" placeholder="🏙 Filtrar cidade">
+    <input type="text" id="filtroBairro" placeholder="📍 Filtrar bairro">
+    <input type="text" id="filtroRua" placeholder="🏠 Filtrar Rua / Avenida">
+    <input type="text" id="filtroEmpresa" placeholder="🏢 Filtrar empresa">
+  </div>
+
+  <button class="btn-acoes" onclick="limparFiltros()">🧹 Limpar filtros</button>
+</div>
+
+<div class="novidades">
+  <h3>✨ Recursos ativos nesta versão</h3>
+  <div class="feature-grid">
+    <span class="feature-badge">📊 Excel XLSX/XLS</span>
+    <span class="feature-badge">📞 Fila de ligações</span>
+    <span class="feature-badge">💬 WhatsApp</span>
+    <span class="feature-badge">✉️ Botão de E-mail</span>
+    <span class="feature-badge">🏙 Cidade</span>
+    <span class="feature-badge">📍 Bairro</span>
+    <span class="feature-badge">🏠 Rua / Avenida</span>
+    <span class="feature-badge">🔢 Número</span>
+    <span class="feature-badge">🏢 Empresa</span>
+    <span class="feature-badge">📍 Abrir no Mapa</span>
+    <span class="feature-badge">📅 Agendar retorno</span>
+    <span class="feature-badge">💾 Salvar + Próximo</span>
+    <span class="feature-badge">🚫 Sem meta diária</span>
+  </div>
+</div>
+
+<section class="stats">
+  <div class="stat"><small>Na fila</small><strong id="statFila">0</strong></div>
+  <div class="stat"><small>Feitos hoje</small><strong id="statHoje">0</strong></div>
+  <div class="stat"><small>Com e-mail</small><strong id="statEmail">0</strong></div>
+  <div class="stat"><small>Retornos pendentes</small><strong id="statRetornos">0</strong></div>
+  <div class="stat"><small>Total histórico</small><strong id="statHistorico">0</strong></div>
+</section>
+
+<div class="modo-box">
+  <div class="modo-info">
+    <strong>⚡ Modo Operador</strong>
+    <small id="modoStatus">Pronto para iniciar a fila de ligações.</small>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button id="btnIniciar" class="btn-primary" onclick="iniciarModoOperador()">▶ Iniciar fila</button>
+    <button id="btnPausar" class="btn-secondary" onclick="pausarModoOperador()" disabled>⏸ Pausar</button>
+    <button class="btn-pular" onclick="pularAtual()">⏭ Pular atual</button>
+  </div>
+</div>
+
+<div id="lista-contatos"></div>
+
+<h2 class="section">📜 Histórico de Ligações e Contatos</h2>
+<div class="table-wrap">
+<table id="contatos-feitos">
+  <thead>
+    <tr>
+      <th>Nome</th><th>Número</th><th>Email</th><th>Status</th><th>Informações</th>
+      <th>Lead</th><th>Cidade/Bairro</th><th>Data/Hora</th><th>Retorno</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+
+<div id="mappingModal" class="modal-bg">
+  <div class="modal">
+    <h3>📊 Conferir colunas do Excel</h3>
+    <p>O sistema tentou reconhecer as colunas automaticamente. Ajuste o que quiser antes de importar.</p>
+    <div id="mappingGrid" class="mapping-grid"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharMapeamento()">Cancelar</button>
+      <button class="btn-primary" onclick="confirmarMapeamento()">✅ Importar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<footer>© 2026 WM Assessoria • Discador Pro V3 • Sem API/VoIP • Sem meta diária</footer>
+
+<script>
+const STORAGE_CONTATOS = "wm_contatos_v2";
+const STORAGE_HIST = "wm_historico_v2";
+const STORAGE_CONFIG = "wm_config_v2";
+
+let contatos = JSON.parse(localStorage.getItem(STORAGE_CONTATOS) || "[]");
+let contatosFeitos = JSON.parse(localStorage.getItem(STORAGE_HIST) || "[]");
+let modoOperador = false;
+let contatoAtivoId = null;
+let planilhaPendente = null;
+
+const CAMPOS = [
+  ["nome","Nome"],["numero","Telefone/Celular"],["email","E-mail"],["empresa","Empresa"],
+  ["cidade","Cidade"],["bairro","Bairro"],["logradouro","Rua/Avenida"],["numeroEndereco","Número do endereço"],
+  ["complemento","Complemento"],["cep","CEP"],["uf","UF/Estado"],["observacoes","Observações"],["lead","Lead"]
+];
+
+const ALIASES = {
+  nome:["nome","cliente","contato","razao social","razão social","responsavel","responsável"],
+  numero:["telefone","fone","celular","whatsapp","numero","número","mobile","tel"],
+  email:["email","e-mail","mail","correio eletronico","correio eletrônico"],
+  empresa:["empresa","companhia","organizacao","organização","company"],
+  cidade:["cidade","municipio","município","city"],
+  bairro:["bairro","district"],
+  logradouro:["logradouro","rua","avenida","av","endereco","endereço"],
+  numeroEndereco:["numero endereco","número endereço","numero do endereco","número do endereço","nº","num endereco"],
+  complemento:["complemento","compl"],
+  cep:["cep","codigo postal","código postal"],
+  uf:["uf","estado","state"],
+  observacoes:["observacoes","observações","obs","informacoes","informações","nota","notas"],
+  lead:["lead","classificacao","classificação","temperatura","status lead"]
+};
+
+function uid(){
+  return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2));
+}
+function normalizarTexto(v){
+  return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+}
+function telefoneLimpo(v){
+  return String(v ?? "").replace(/\D/g,"");
+}
+function telefoneBR(v){
+  let n = telefoneLimpo(v);
+  if(n.startsWith("55") && n.length >= 12) return n;
+  return n ? "55"+n : "";
+}
+function emailValido(v){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
+}
+function hojeLocal(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function dataLocalString(){
+  return new Date().toLocaleString("pt-BR");
+}
+function salvarTudo(){
+  localStorage.setItem(STORAGE_CONTATOS, JSON.stringify(contatos));
+  localStorage.setItem(STORAGE_HIST, JSON.stringify(contatosFeitos));
+}
+function toast(msg){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.classList.add("show");
+  clearTimeout(window._toastTimer);
+  window._toastTimer=setTimeout(()=>el.classList.remove("show"),2200);
+}
+function escapeHTML(v){
+  return String(v ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
+}
+function enderecoCompleto(c){
+  const linha1=[c.logradouro,c.numeroEndereco].filter(Boolean).join(", ");
+  const linha2=[c.bairro,c.cidade,c.uf].filter(Boolean).join(" - ");
+  return [linha1,linha2,c.cep].filter(Boolean).join(" • ");
+}
+function contatoJaHistorico(c){
+  const n=telefoneLimpo(c.numero);
+  const e=normalizarTexto(c.email);
+  return contatosFeitos.some(h => (n && telefoneLimpo(h.numero)===n) || (e && normalizarTexto(h.email)===e));
+}
+function retornoPendente(c){
+  if(!c.retorno) return false;
+  return new Date(c.retorno).getTime() <= Date.now();
+}
+
+document.getElementById("fileInput").addEventListener("change", importarArquivo);
+document.getElementById("filtroBusca").addEventListener("input", renderizarContatos);
+document.getElementById("filtroLead").addEventListener("change", renderizarContatos);
+document.getElementById("filtroTipo").addEventListener("change", renderizarContatos);
+document.getElementById("filtroCidade").addEventListener("input", renderizarContatos);
+document.getElementById("filtroBairro").addEventListener("input", renderizarContatos);
+document.getElementById("filtroRua").addEventListener("input", renderizarContatos);
+document.getElementById("filtroEmpresa").addEventListener("input", renderizarContatos);
+
+async function importarArquivo(e){
+  const f=e.target.files[0];
+  if(!f) return;
+  const ext=f.name.split(".").pop().toLowerCase();
+
+  try{
+    if(ext==="csv" || ext==="txt"){
+      const txt=await f.text();
+      importarTextoEstruturado(txt);
+      return;
+    }
+    if(ext==="xlsx" || ext==="xls"){
+      if(typeof XLSX==="undefined"){
+        alert("A biblioteca de Excel não carregou. Verifique sua internet ou salve a planilha como CSV.");
+        return;
+      }
+      const data=await f.arrayBuffer();
+      const wb=XLSX.read(data,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:"",raw:false});
+      if(!rows.length){ alert("A planilha está vazia."); return; }
+      abrirMapeamento(rows);
+      return;
+    }
+    alert("Formato não suportado. Use XLSX, XLS, CSV ou TXT.");
+  }catch(err){
+    console.error(err);
+    alert("Não foi possível importar o arquivo. Verifique se ele está válido.");
+  }finally{
+    e.target.value="";
+  }
+}
+
+function detectarSeparador(linha){
+  const candidatos=[",",";","\t","|"];
+  return candidatos.sort((a,b)=>(linha.split(b).length-linha.split(a).length))[0];
+}
+function importarTextoEstruturado(txt){
+  const linhas=txt.split(/\r?\n/).filter(l=>l.trim());
+  if(!linhas.length) return alert("Arquivo vazio.");
+  const sep=detectarSeparador(linhas[0]);
+  const headers=linhas[0].split(sep).map(s=>s.trim());
+  const rows=linhas.slice(1).map(l=>{
+    const vals=l.split(sep);
+    const o={}; headers.forEach((h,i)=>o[h]=(vals[i] ?? "").trim()); return o;
+  }).filter(o=>Object.values(o).some(Boolean));
+  abrirMapeamento(rows);
+}
+
+function campoDetectado(header){
+  const h=normalizarTexto(header);
+  for(const [campo,aliases] of Object.entries(ALIASES)){
+    if(aliases.some(a => h===normalizarTexto(a) || h.includes(normalizarTexto(a)))) return campo;
+  }
+  return "";
+}
+function abrirMapeamento(rows){
+  planilhaPendente=rows;
+  const headers=Object.keys(rows[0] || {});
+  const grid=document.getElementById("mappingGrid");
+  grid.innerHTML="";
+  headers.forEach((h,i)=>{
+    const div=document.createElement("div"); div.className="map-row";
+    const suggested=campoDetectado(h);
+    div.innerHTML=`
+      <span title="${escapeHTML(h)}"><strong>${escapeHTML(h)}</strong></span>
+      <select data-col="${escapeHTML(h)}" id="map_${i}">
+        <option value="">Ignorar</option>
+        ${CAMPOS.map(([v,l])=>`<option value="${v}" ${suggested===v?"selected":""}>${l}</option>`).join("")}
+      </select>`;
+    grid.appendChild(div);
+  });
+  document.getElementById("mappingModal").style.display="flex";
+}
+function fecharMapeamento(){
+  planilhaPendente=null;
+  document.getElementById("mappingModal").style.display="none";
+}
+function confirmarMapeamento(){
+  if(!planilhaPendente) return;
+  const selects=[...document.querySelectorAll("#mappingGrid select")];
+  const mapping={};
+  selects.forEach(s=>{ if(s.value) mapping[s.dataset.col]=s.value; });
+
+  if(!Object.values(mapping).includes("nome") && !Object.values(mapping).includes("numero")){
+    if(!confirm("Não foi identificada coluna de Nome ou Telefone. Importar mesmo assim?")) return;
+  }
+
+  let novos=0, atualizados=0, ignorados=0;
+  for(const row of planilhaPendente){
+    const c={id:uid(),nome:"",numero:"",email:"",empresa:"",cidade:"",bairro:"",logradouro:"",numeroEndereco:"",complemento:"",cep:"",uf:"",observacoes:"",lead:"Aguardando",retorno:""};
+    for(const [col,campo] of Object.entries(mapping)){
+      c[campo]=String(row[col] ?? "").trim();
+    }
+    c.numero=telefoneLimpo(c.numero);
+    if(!c.nome && !c.numero && !c.email){ ignorados++; continue; }
+
+    const existente=contatos.find(x =>
+      (c.numero && telefoneLimpo(x.numero)===c.numero) ||
+      (c.email && normalizarTexto(x.email)===normalizarTexto(c.email))
+    );
+    if(existente){
+      Object.keys(c).forEach(k=>{
+        if(k!=="id" && c[k] && !existente[k]) existente[k]=c[k];
+      });
+      atualizados++;
+    }else{
+      contatos.push(c); novos++;
+    }
+  }
+  salvarTudo();
+  fecharMapeamento();
+  renderizarContatos();
+  atualizarTudo();
+  toast(`${novos} novos • ${atualizados} atualizados • ${ignorados} ignorados`);
+}
+
+function importarColado(){
+  const texto=document.getElementById("pasteInput").value.trim();
+  if(!texto) return alert("Cole ao menos um contato.");
+  const linhas=texto.split(/\r?\n/).filter(Boolean);
+  let novos=0, duplicados=0;
+
+  linhas.forEach(l=>{
+    const sep=detectarSeparador(l);
+    const p=l.split(sep).map(x=>x.trim());
+    let c={
+      id:uid(), nome:p[0]||"", numero:telefoneLimpo(p[1]||""), email:p[2]||"",
+      cidade:p[3]||"", bairro:p[4]||"", logradouro:p[5]||"", numeroEndereco:p[6]||"",
+      empresa:p[7]||"", complemento:"",cep:"",uf:"",observacoes:"",lead:"Aguardando",retorno:""
+    };
+    if(p.length===1){
+      const match=l.match(/(.+?)\s+(\+?\d[\d\s().-]{7,})/);
+      if(match){ c.nome=match[1].trim(); c.numero=telefoneLimpo(match[2]); }
+    }
+    if(!c.nome && !c.numero) return;
+    const dup=contatos.some(x => c.numero && telefoneLimpo(x.numero)===c.numero);
+    if(dup){ duplicados++; return; }
+    contatos.push(c); novos++;
+  });
+  document.getElementById("pasteInput").value="";
+  salvarTudo(); renderizarContatos(); atualizarTudo();
+  toast(`${novos} importados • ${duplicados} duplicados ignorados`);
+}
+
+function contatosFiltrados(){
+  const busca=normalizarTexto(document.getElementById("filtroBusca").value);
+  const lead=document.getElementById("filtroLead").value;
+  const tipo=document.getElementById("filtroTipo").value;
+  const cidade=normalizarTexto(document.getElementById("filtroCidade").value);
+  const bairro=normalizarTexto(document.getElementById("filtroBairro").value);
+  const rua=normalizarTexto(document.getElementById("filtroRua").value);
+  const empresa=normalizarTexto(document.getElementById("filtroEmpresa").value);
+
+  return contatos.filter(c=>{
+    if(lead && c.lead!==lead) return false;
+    if(cidade && !normalizarTexto(c.cidade).includes(cidade)) return false;
+    if(bairro && !normalizarTexto(c.bairro).includes(bairro)) return false;
+    if(rua && !normalizarTexto(c.logradouro).includes(rua)) return false;
+    if(empresa && !normalizarTexto(c.empresa).includes(empresa)) return false;
+    if(tipo==="telefone" && !telefoneLimpo(c.numero)) return false;
+    if(tipo==="email" && !emailValido(c.email)) return false;
+    if(tipo==="retorno" && !retornoPendente(c)) return false;
+    if(tipo==="nao_contatado" && contatoJaHistorico(c)) return false;
+
+    if(busca){
+      const blob=normalizarTexto([
+        c.nome,c.numero,c.email,c.empresa,c.cidade,c.bairro,c.logradouro,c.numeroEndereco,c.cep,c.uf,c.observacoes
+      ].join(" "));
+      if(!blob.includes(busca)) return false;
+    }
+    return true;
+  });
+}
+
+function renderizarContatos(){
+  const lista=document.getElementById("lista-contatos");
+  lista.innerHTML="";
+  const filtrados=contatosFiltrados();
+
+  if(!filtrados.length){
+    lista.innerHTML=`<div class="empty">
+      <strong>Importe sua planilha para começar</strong>
+      Agora o sistema lê e exibe Nome, Telefone, E-mail, Empresa, Cidade, Bairro, Rua/Avenida, Número, CEP e UF.
+      <div class="empty-features">
+        <span class="feature-badge">📊 Excel</span>
+        <span class="feature-badge">✉️ E-mail</span>
+        <span class="feature-badge">📞 Ligar</span>
+        <span class="feature-badge">💬 WhatsApp</span>
+        <span class="feature-badge">📍 Mapa</span>
+      </div>
+    </div>`;
+    return;
+  }
+
+  filtrados.forEach(c=>{
+    const card=document.createElement("div");
+    card.className="contato-card"+(c.id===contatoAtivoId?" ativo":"");
+    card.dataset.id=c.id;
+
+    const endereco=enderecoCompleto(c);
+    const chips=[
+      c.empresa ? `🏢 ${escapeHTML(c.empresa)}` : "",
+      c.cidade ? `🏙 ${escapeHTML(c.cidade)}` : "",
+      c.bairro ? `📍 ${escapeHTML(c.bairro)}` : "",
+      c.lead ? `${c.lead==="Quente"?"🔥":c.lead==="Frio"?"❄️":"⏳"} ${escapeHTML(c.lead)}` : "",
+      c.retorno ? `📅 ${new Date(c.retorno).toLocaleString("pt-BR")}` : ""
+    ].filter(Boolean);
+
+    card.innerHTML=`
+      <div class="contato-top">
+        <span class="nome">${escapeHTML(c.nome || "Sem nome")}</span>
+        ${c.numero ? `<span class="numero">📞 ${escapeHTML(c.numero)}</span>` : ""}
+        ${c.email ? `<span class="email-line">✉️ ${escapeHTML(c.email)}</span>` : ""}
+      </div>
+
+      <div class="dados-grid">
+        <div class="dado"><span class="card-label">🏢 Empresa</span><strong>${escapeHTML(c.empresa || "—")}</strong></div>
+        <div class="dado"><span class="card-label">🏙 Cidade</span><strong>${escapeHTML(c.cidade || "—")}</strong></div>
+        <div class="dado"><span class="card-label">📍 Bairro</span><strong>${escapeHTML(c.bairro || "—")}</strong></div>
+        <div class="dado"><span class="card-label">🏠 Rua / Avenida</span><strong>${escapeHTML([c.logradouro,c.numeroEndereco].filter(Boolean).join(", ") || "—")}</strong></div>
+      </div>
+
+      ${chips.length?`<div class="chips">${chips.map(x=>`<span class="chip">${x}</span>`).join("")}</div>`:""}
+      ${endereco?`<div class="endereco">📌 Endereço completo: ${escapeHTML(endereco)}</div>`:""}
+      <div class="acoes">
+        <button class="btn-ligar" ${c.numero?"":"disabled"} onclick="ligarContato('${c.id}')">📞 Ligar</button>
+        <button class="btn-whats" ${c.numero?"":"disabled"} onclick="abrirWhats('${c.id}')">💬 WhatsApp</button>
+        <button class="btn-email" ${emailValido(c.email)?"":"disabled"} onclick="abrirEmail('${c.id}')">✉️ E-mail</button>
+        <button class="btn-mapa" ${endereco?"":"disabled"} onclick="abrirMapa('${c.id}')">📍 Mapa</button>
+      </div>
+      <div class="formulario">
+        <select id="status_${c.id}">
+          <option>Atendeu</option><option>Não Atendeu</option><option>Caixa Postal</option>
+          <option>Desligou</option><option>Sem Resposta</option><option>Interessado</option><option>Não Interessado</option>
+        </select>
+        <select id="lead_${c.id}">
+          <option ${c.lead==="Quente"?"selected":""}>Quente</option>
+          <option ${c.lead==="Frio"?"selected":""}>Frio</option>
+          <option ${c.lead==="Aguardando"?"selected":""}>Aguardando</option>
+        </select>
+        <textarea id="info_${c.id}" placeholder="Informações / observações">${escapeHTML(c.observacoes||"")}</textarea>
+        <input type="datetime-local" id="retorno_${c.id}" value="${escapeHTML(c.retorno||"")}" title="Agendar retorno">
+        <button class="btn-salvar" onclick="salvarEProximo('${c.id}')">💾 Salvar + Próximo</button>
+      </div>`;
+    lista.appendChild(card);
+  });
+}
+
+function getContato(id){ return contatos.find(c=>c.id===id); }
+
+function ligarContato(id){
+  const c=getContato(id); if(!c || !c.numero) return;
+  contatoAtivoId=id;
+  renderizarContatos();
+  document.getElementById("modoStatus").textContent=`Ligando para ${c.nome || c.numero}. Ao voltar, registre o resultado e use Salvar + Próximo.`;
+  window.location.href=`tel:+${telefoneBR(c.numero)}`;
+}
+
+function abrirWhats(id){
+  const c=getContato(id); if(!c || !c.numero) return;
+  contatoAtivoId=id; renderizarContatos();
+  const nome=(c.nome || "").split(" ")[0];
+  const msg=`Olá${nome?", "+nome:""}! Tudo bem?`;
+  window.open(`https://wa.me/${telefoneBR(c.numero)}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+
+function abrirEmail(id){
+  const c=getContato(id); if(!c || !emailValido(c.email)) return;
+  const nome=(c.nome || "").split(" ")[0];
+  const assunto="Contato - WM Assessoria";
+  const corpo=`Olá${nome?", "+nome:""}!\n\nTudo bem?\n\nEstou entrando em contato pela WM Assessoria.\n\nAtenciosamente,`;
+  window.location.href=`mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+}
+
+function abrirMapa(id){
+  const c=getContato(id); if(!c) return;
+  const end=[c.logradouro,c.numeroEndereco,c.bairro,c.cidade,c.uf,c.cep].filter(Boolean).join(", ");
+  if(!end) return;
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(end)}`,"_blank");
+}
+
+function salvarEProximo(id){
+  const c=getContato(id); if(!c) return;
+  const status=document.getElementById(`status_${id}`)?.value || "";
+  const lead=document.getElementById(`lead_${id}`)?.value || "Aguardando";
+  const info=document.getElementById(`info_${id}`)?.value || "";
+  const retorno=document.getElementById(`retorno_${id}`)?.value || "";
+
+  c.lead=lead; c.observacoes=info; c.retorno=retorno;
+
+  contatosFeitos.push({
+    nome:c.nome,numero:c.numero,email:c.email||"",status,info,lead,
+    local:[c.cidade,c.bairro].filter(Boolean).join(" / "),
+    dataHora:dataLocalString(), dataISO:new Date().toISOString(), retorno
+  });
+
+  const index=contatos.findIndex(x=>x.id===id);
+  contatos.splice(index,1);
+  contatoAtivoId=null;
+  salvarTudo();
+  atualizarTudo();
+
+  if(modoOperador) selecionarProximo(true);
+  else toast("Contato salvo no histórico.");
+}
+
+function iniciarModoOperador(){
+  modoOperador=true;
+  document.getElementById("btnIniciar").disabled=true;
+  document.getElementById("btnPausar").disabled=false;
+  selecionarProximo(false);
+}
+
+function pausarModoOperador(){
+  modoOperador=false;
+  document.getElementById("btnIniciar").disabled=false;
+  document.getElementById("btnPausar").disabled=true;
+  document.getElementById("modoStatus").textContent="Fila pausada.";
+}
+
+function selecionarProximo(rolar=true){
+  const lista=contatosFiltrados();
+  if(!lista.length){
+    contatoAtivoId=null; modoOperador=false;
+    document.getElementById("btnIniciar").disabled=false;
+    document.getElementById("btnPausar").disabled=true;
+    document.getElementById("modoStatus").textContent="Fila concluída ou nenhum contato disponível.";
+    renderizarContatos(); return;
+  }
+  contatoAtivoId=lista[0].id;
+  const c=lista[0];
+  document.getElementById("modoStatus").textContent=`Próximo: ${c.nome || "Sem nome"} • ${c.numero || "sem telefone"}`;
+  renderizarContatos();
+  if(rolar){
+    setTimeout(()=>document.querySelector(`[data-id="${contatoAtivoId}"]`)?.scrollIntoView({behavior:"smooth",block:"center"}),80);
+  }
+}
+
+function pularAtual(){
+  if(!contatoAtivoId){
+    selecionarProximo(); return;
+  }
+  const idx=contatos.findIndex(c=>c.id===contatoAtivoId);
+  if(idx>=0){
+    const [c]=contatos.splice(idx,1);
+    contatos.push(c);
+    salvarTudo();
+  }
+  contatoAtivoId=null;
+  selecionarProximo();
+  toast("Contato movido para o fim da fila.");
+}
+
+function atualizarHistorico(){
+  const tb=document.querySelector("#contatos-feitos tbody");
+  tb.innerHTML="";
+  [...contatosFeitos].reverse().forEach(c=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${escapeHTML(c.nome)}</td><td>${escapeHTML(c.numero)}</td><td>${escapeHTML(c.email||"")}</td>
+      <td>${escapeHTML(c.status)}</td><td>${escapeHTML(c.info)}</td><td>${escapeHTML(c.lead)}</td>
+      <td>${escapeHTML(c.local||"")}</td><td>${escapeHTML(c.dataHora)}</td>
+      <td>${c.retorno?escapeHTML(new Date(c.retorno).toLocaleString("pt-BR")):""}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function atualizarContadores(){
+  const hoje=hojeLocal();
+  const feitosHoje=contatosFeitos.filter(c=>{
+    if(c.dataISO) return c.dataISO.slice(0,10)===hoje;
+    return false;
+  }).length;
+  const emails=contatos.filter(c=>emailValido(c.email)).length;
+  const retornos=contatos.filter(c=>retornoPendente(c)).length;
+
+  document.getElementById("statFila").textContent=contatos.length;
+  document.getElementById("statHoje").textContent=feitosHoje;
+  document.getElementById("statEmail").textContent=emails;
+  document.getElementById("statRetornos").textContent=retornos;
+  document.getElementById("statHistorico").textContent=contatosFeitos.length;
+}
+
+function atualizarTudo(){
+  renderizarContatos();
+  atualizarHistorico();
+  atualizarContadores();
+}
+
+function exportarCSV(){
+  const headers=["Nome","Numero","Email","Status","Informacoes","Lead","Local","DataHora","Retorno"];
+  const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const linhas=contatosFeitos.map(c=>[
+    c.nome,c.numero,c.email,c.status,c.info,c.lead,c.local,c.dataHora,c.retorno
+  ].map(esc).join(";"));
+  const csv="\uFEFF"+headers.join(";")+"\n"+linhas.join("\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`wm_historico_${hojeLocal()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function limparFiltros(){
+  document.getElementById("filtroBusca").value="";
+  document.getElementById("filtroLead").value="";
+  document.getElementById("filtroTipo").value="";
+  document.getElementById("filtroCidade").value="";
+  document.getElementById("filtroBairro").value="";
+  document.getElementById("filtroRua").value="";
+  document.getElementById("filtroEmpresa").value="";
+  renderizarContatos();
+}
+
+function resetGeral(){
+  if(!confirm("Apagar toda a fila e o histórico deste navegador?")) return;
+  contatos=[]; contatosFeitos=[]; contatoAtivoId=null; modoOperador=false;
+  localStorage.removeItem(STORAGE_CONTATOS);
+  localStorage.removeItem(STORAGE_HIST);
+  atualizarTudo();
+  document.getElementById("modoStatus").textContent="Pronto para iniciar a fila de ligações.";
+  document.getElementById("btnIniciar").disabled=false;
+  document.getElementById("btnPausar").disabled=true;
+}
+
+// Atalhos: L ligar, W WhatsApp, E email, S salvar+próximo, N pular
+document.addEventListener("keydown",e=>{
+  const tag=document.activeElement?.tagName;
+  if(["INPUT","TEXTAREA","SELECT"].includes(tag)) return;
+  let id=contatoAtivoId || contatosFiltrados()[0]?.id;
+  if(!id) return;
+  const k=e.key.toLowerCase();
+  if(k==="l") ligarContato(id);
+  else if(k==="w") abrirWhats(id);
+  else if(k==="e") abrirEmail(id);
+  else if(k==="s") salvarEProximo(id);
+  else if(k==="n") pularAtual();
+});
+
+atualizarTudo();
+</script>
+</body>
+</html>
